@@ -1,0 +1,14 @@
+
+
+install stuff:
+delete node_modules
+npm install -g eas-cli
+npm cache clean --force
+npm install
+npm install expo
+
+when developing:
+npx expo start
+
+if you add dependencies or change `package.json`:
+eas build --platform ios --profile development

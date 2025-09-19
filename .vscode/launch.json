@@ -1,0 +1,93 @@
+{
+  // See https://code.visualstudio.com/docs/editor/debugging and
+  // https://code.visualstudio.com/docs/python/debugging for config details
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: API (Uvicorn)",
+      "type": "debugpy",
+      "request": "launch",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "envFile": "${workspaceFolder}/backend/.env",
+      "module": "uvicorn",
+      "args": [
+        "backend.app.main:app",
+        "--reload",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ],
+      "subProcess": true,
+      "justMyCode": true,
+
+    },
+    {
+      "name": "Backend: Celery Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "envFile": "${workspaceFolder}/backend/.env",
+      "module": "celery",
+      "args": [
+        "-A",
+        "backend.workers.celery_app:celery_app",
+        "worker",
+        "-l",
+        "info",
+        "--pool",
+        "solo"
+      ],
+      "justMyCode": true,
+
+    },
+
+    {
+        "name": "Run - Expo Frontend",
+        "type": "pwa-node",
+        "request": "launch",
+        "console": "integratedTerminal",
+        "cwd": "${workspaceFolder}/frontend/savery",
+        "runtimeExecutable": "npx",
+        "args": [
+            "expo",
+            "start",
+            "--tunnel"
+        ],
+        "justMyCode": true
+    }
+
+  ],
+  "compounds": [
+    {
+      "name": "Run - Backend: API + Worker",
+      "configurations": [
+        "Backend: API (Uvicorn)",
+        "Backend: Celery Worker"
+      ],
+      "stopAll": true,
+    "preLaunchTask": "docker: start messaging (rabbitmq+dragonfly)",
+    "postDebugTask": "docker: stop messaging (rabbitmq+dragonfly)",
+    },
+    
+    {
+      "name": "Run - Frontend + Backend",
+      "configurations": [
+        "Run - Expo Frontend",
+        "Backend: API (Uvicorn)",
+        "Backend: Celery Worker"
+      ],
+      "stopAll": true,
+    "preLaunchTask": "docker: start messaging (rabbitmq+dragonfly)",
+    "postDebugTask": "docker: stop messaging (rabbitmq+dragonfly)",
+    }
+  ]
+}

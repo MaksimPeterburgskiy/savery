@@ -1,0 +1,11 @@
+{
+  // Use the backend's virtualenv if present
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  // Keep terminals readable for long-running debug sessions
+"terminal.integrated.defaultProfile.osx": "bash",
+"cSpell.enabledLanguageIds": [
+    "COBOL",
+    "ACUCOBOL"
+]
+}
+

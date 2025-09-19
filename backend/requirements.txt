@@ -1,0 +1,9 @@
+fastapi[standard]
+uvicorn[standard]
+pydantic-settings
+python-dotenv
+celery
+SQLAlchemy
+pytest
+psycopg
+debugpy
