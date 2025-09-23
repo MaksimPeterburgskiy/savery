@@ -21,7 +21,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$container = 'savery-dragonfly'; docker container inspect $container > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start $container | Out-Null } else { docker run -d --name $container -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly | Out-Null }"
+          "docker container inspect 'savery-dragonfly' > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start 'savery-dragonfly' | Out-Null } else { docker run -d --name 'savery-dragonfly' -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly | Out-Null }"
         ]
       }
     },
@@ -43,7 +43,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$image = 'savery/postgres-postgis-pgvector:local'; $container = 'savery-postgres'; if (-not (docker image inspect $image > $null 2>&1)) { docker build -t $image -f infra/docker/postgres-pgvector.Dockerfile infra/docker | Out-Null } docker container inspect $container > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start $container | Out-Null } else { docker run -d --name $container -p 5432:5432 -e POSTGRES_DB=savery -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres $image | Out-Null }"
+          "if (-not (docker image inspect 'savery/postgres-postgis-pgvector:local' > $null 2>&1)) { docker build -t 'savery/postgres-postgis-pgvector:local' -f infra/docker/postgres-pgvector.Dockerfile infra/docker | Out-Null } docker container inspect 'savery-postgres' > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start 'savery-postgres' | Out-Null } else { docker run -d --name 'savery-postgres' -p 5432:5432 -e POSTGRES_DB=savery -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres 'savery/postgres-postgis-pgvector:local' | Out-Null }"
         ]
       }
     },
@@ -65,7 +65,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$container = 'savery-rabbit'; docker container inspect $container > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start $container | Out-Null } else { docker run -d --name $container -p 5672:5672 -p 15672:15672 rabbitmq:3-management | Out-Null }"
+          "docker container inspect 'savery-rabbit' > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start 'savery-rabbit' | Out-Null } else { docker run -d --name 'savery-rabbit' -p 5672:5672 -p 15672:15672 rabbitmq:3-management | Out-Null }"
         ]
       }
     },
