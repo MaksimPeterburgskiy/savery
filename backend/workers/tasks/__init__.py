@@ -1,5 +1,5 @@
 """Task modules for Celery workers."""
 
-from . import example  # noqa: F401
+from . import example, matching, optimize, scraping  # noqa: F401
 
-__all__ = ["example"]
+__all__ = ["example", "matching", "optimize", "scraping"]

@@ -6,6 +6,13 @@ npm install -g eas-cli
 npm cache clean --force
 npm install
 npm install expo
+npm install expo-dev-client
+eas login
+eas build:configure
+add device on website
+name device
+install latest build
+
 
 when developing:
 npx expo start

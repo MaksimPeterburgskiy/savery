@@ -31,6 +31,8 @@ async def request_optimization(
 
     task_id = enqueue_optimization_job(payload)
 
+    # Celery orchestrates a RabbitMQ-backed pipeline; surface the polling URL for clients.
+
     base_url = settings.task_status_base_url
     if base_url:
         status_url = f"{base_url.rstrip('/')}/{task_id}"

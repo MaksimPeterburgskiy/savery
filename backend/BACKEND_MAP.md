@@ -16,8 +16,8 @@ The backend combines a FastAPI web service, SQLAlchemy-powered persistence scaff
   - `schema.py` – SQLAlchemy ORM models for stores, products, prices, and optimization jobs.
   - `tasks.py` – Thin interface for enqueuing Celery jobs and querying task status from the API layer.
 - `workers/`
-  - `celery_app.py` – Celery application configuration and health check task (`workers.health.ping`).
-  - `tasks/` – Namespaced Celery task modules (optimization, matching, scraping, etc.).
+  - `celery_app.py` – Celery application configuration and health check task (`workers.health.ping`). The Celery app is wired to RabbitMQ queues for matching, scraping, and optimization stages.
+  - `tasks/` – Namespaced Celery task modules (optimization, matching, scraping, etc.) representing the background workflow orchestrated through RabbitMQ.
 - `tools/`
   - `make_env.py` – Utility script for creating a local virtual environment and installing `requirements.txt`.
 - `tests/`
@@ -32,7 +32,7 @@ The backend combines a FastAPI web service, SQLAlchemy-powered persistence scaff
   - `POST /api/optimize` (`backend.app.api.routes.optimization.request_optimization`) – queues a Celery optimization job and returns a task identifier plus polling URL.
   - `GET /api/tasks/{task_id}` (`backend.app.api.routes.tasks.read_task_status`) – surfaces Celery task status for clients polling job progress.
 - **Celery worker:** Run Celery with the application path `backend.workers.celery_app:celery_app`. This registers shared tasks under the `backend.workers` namespace and configures broker/result backends from settings.
-- **Optimization task:** `workers.optimize.plan_route` receives the payload enqueued by `/api/optimize` and currently returns a placeholder plan structure. The default Celery route name is controlled by `SAVERY_CELERY_ROUTE_TASK`.
+- **Optimization pipeline:** `/api/optimize` triggers a Celery chain of `workers.matching.match_items → workers.scraping.fetch_prices → workers.optimize.plan_route`. RabbitMQ carries the messages between each queue and the default task names can be overridden via `SAVERY_CELERY_*` settings.
 
 ## Supporting Components
 - **Database access:** `backend.app.dependencies.get_db` yields SQLAlchemy sessions backed by `core.db.session_scope`, allowing future routes to interact with Postgres while ensuring proper commit/rollback handling.

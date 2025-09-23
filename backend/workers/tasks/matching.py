@@ -12,15 +12,29 @@ def match_items(payload: dict[str, Any]) -> dict[str, Any]:
     """Map free-form shopping list items to canonical product candidates."""
 
     items: list[dict[str, Any]] = payload.get("items", [])
+    store_ids: list[str] = payload.get("store_ids", [])
 
-    matched = []
+    matched: list[dict[str, Any]] = []
     for item in items:
+        normalized_name = item.get("name", "").strip()
         matched.append(
             {
-                "query": item,
-                "candidates": [],
-                "notes": "Matching not yet implemented.",
+                "list_item": item,
+                "normalized_name": normalized_name.lower(),
+                "candidates": [
+                    {
+                        "store_id": store_id,
+                        "confidence": 0.0,
+                        "product_id": None,
+                        "product_name": None,
+                        "notes": "Matching logic not yet implemented.",
+                    }
+                    for store_id in store_ids
+                ],
             }
         )
 
-    return {"matched": matched}
+    return {
+        "request": payload,
+        "matched_items": matched,
+    }

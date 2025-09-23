@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/savery"
 
     celery_broker_url: str = "amqp://guest:guest@localhost//"
-    celery_result_backend: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "rpc://"
+    celery_matching_task: str = "workers.matching.match_items"
+    celery_pricing_task: str = "workers.scraping.fetch_prices"
     celery_route_task: str = "workers.optimize.plan_route"
 
     task_status_base_url: str | None = None
