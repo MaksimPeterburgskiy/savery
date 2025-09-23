@@ -14,6 +14,15 @@
 
       "presentation": {
         "group": "Docker"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "if (docker ps -a --format '{{.Names}}' | Select-String -Quiet '^savery-dragonfly$') { docker start savery-dragonfly | Out-Null } else { docker run -d --name savery-dragonfly -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly | Out-Null }"
+        ]
       }
     },
     {
@@ -27,6 +36,15 @@
       "problemMatcher": [],
       "presentation": {
         "group": "Docker"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "if (docker ps -a --format '{{.Names}}' | Select-String -Quiet '^savery-rabbit$') { docker start savery-rabbit | Out-Null } else { docker run -d --name savery-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management | Out-Null }"
+        ]
       }
     },
     {
@@ -51,6 +69,15 @@
       "problemMatcher": [],
       "presentation": {
         "group": "Docker"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "docker stop savery-rabbit savery-dragonfly 2>$null | Out-Null; if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0 }"
+        ]
       }
     }
   ]
