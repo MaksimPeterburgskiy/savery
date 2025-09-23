@@ -74,8 +74,8 @@
         "Backend: Celery Worker"
       ],
       "stopAll": true,
-    "preLaunchTask": "docker: start messaging (rabbitmq+dragonfly)",
-    "postDebugTask": "docker: stop messaging (rabbitmq+dragonfly)",
+      "preLaunchTask": "docker: start services (postgres+rabbitmq+dragonfly)",
+      "postDebugTask": "docker: stop services (postgres+rabbitmq+dragonfly)",
     },
     
     {
@@ -86,8 +86,8 @@
         "Backend: Celery Worker"
       ],
       "stopAll": true,
-    "preLaunchTask": "docker: start messaging (rabbitmq+dragonfly)",
-    "postDebugTask": "docker: stop messaging (rabbitmq+dragonfly)",
+      "preLaunchTask": "docker: start services (postgres+rabbitmq+dragonfly)",
+      "postDebugTask": "docker: stop services (postgres+rabbitmq+dragonfly)",
     }
   ]
 }

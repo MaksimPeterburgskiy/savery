@@ -21,7 +21,29 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "if (docker ps -a --format '{{.Names}}' | Select-String -Quiet '^savery-dragonfly$') { docker start savery-dragonfly | Out-Null } else { docker run -d --name savery-dragonfly -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly | Out-Null }"
+          "$container = 'savery-dragonfly'; docker container inspect $container > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start $container | Out-Null } else { docker run -d --name $container -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly | Out-Null }"
+        ]
+      }
+    },
+    {
+      "label": "docker: start postgres",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "IMAGE=savery/postgres-postgis-pgvector:local; CONTAINER=savery-postgres; if ! docker image inspect $IMAGE >/dev/null 2>&1; then docker build -t $IMAGE -f infra/docker/postgres-pgvector.Dockerfile infra/docker >/dev/null; fi; if docker ps -a --format '{{.Names}}' | grep -q \"^${CONTAINER}$\"; then docker start $CONTAINER >/dev/null || true; else docker run -d --name $CONTAINER -p 5432:5432 -e POSTGRES_DB=savery -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres $IMAGE >/dev/null; fi"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "group": "Docker"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$image = 'savery/postgres-postgis-pgvector:local'; $container = 'savery-postgres'; if (-not (docker image inspect $image > $null 2>&1)) { docker build -t $image -f infra/docker/postgres-pgvector.Dockerfile infra/docker | Out-Null } docker container inspect $container > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start $container | Out-Null } else { docker run -d --name $container -p 5432:5432 -e POSTGRES_DB=savery -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres $image | Out-Null }"
         ]
       }
     },
@@ -43,13 +65,14 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "if (docker ps -a --format '{{.Names}}' | Select-String -Quiet '^savery-rabbit$') { docker start savery-rabbit | Out-Null } else { docker run -d --name savery-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management | Out-Null }"
+          "$container = 'savery-rabbit'; docker container inspect $container > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start $container | Out-Null } else { docker run -d --name $container -p 5672:5672 -p 15672:15672 rabbitmq:3-management | Out-Null }"
         ]
       }
     },
     {
-      "label": "docker: start messaging (rabbitmq+dragonfly)",
+      "label": "docker: start services (postgres+rabbitmq+dragonfly)",
       "dependsOn": [
+        "docker: start postgres",
         "docker: start rabbitmq",
         "docker: start dragonfly"
       ],
@@ -59,12 +82,12 @@
       }
     },
     {
-      "label": "docker: stop messaging (rabbitmq+dragonfly)",
+      "label": "docker: stop services (postgres+rabbitmq+dragonfly)",
       "type": "shell",
       "command": "bash",
       "args": [
         "-lc",
-        "docker stop savery-rabbit savery-dragonfly >/dev/null 2>&1 || true"
+        "docker stop savery-postgres savery-rabbit savery-dragonfly >/dev/null 2>&1 || true"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -76,7 +99,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "docker stop savery-rabbit savery-dragonfly 2>$null | Out-Null; if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0 }"
+          "docker stop savery-postgres savery-rabbit savery-dragonfly 2>$null | Out-Null; if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0 }"
         ]
       }
     }
