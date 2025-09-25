@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from importlib import import_module
 from typing import Any, Generator
 
 from backend.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _engine: Any | None = None
 _session_factory: Any | None = None
@@ -86,4 +89,10 @@ def init_db() -> None:
     metadata = getattr(base, "metadata", None)
 
     if metadata is not None:
-        metadata.create_all(bind=engine)
+        try:
+            metadata.create_all(bind=engine)
+        except Exception as exc:  # pragma: no cover - requires broken DB connection
+            logger.warning(
+                "Skipping database initialization (is Postgres running?): %s",
+                exc,
+            )

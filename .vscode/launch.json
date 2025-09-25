@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Backend: API (Uvicorn)",
+      "name": "Web API",
       "type": "debugpy",
       "request": "launch",
       "console": "integratedTerminal",
@@ -24,10 +24,12 @@
       ],
       "subProcess": true,
       "justMyCode": true,
+    "consoleTitle": "Web API",
+    "postDebugTask": "stop services (postgres+rabbitmq+dragonfly)",
 
     },
     {
-      "name": "Backend: Celery Worker",
+      "name": "Celery",
       "type": "debugpy",
       "request": "launch",
       "console": "integratedTerminal",
@@ -47,11 +49,12 @@
         "solo"
       ],
       "justMyCode": true,
+       "consoleTitle": "Celery",
 
     },
 
     {
-        "name": "Run - Expo Frontend",
+        "name": "Expo",
         "type": "pwa-node",
         "request": "launch",
         "console": "integratedTerminal",
@@ -62,32 +65,33 @@
             "start",
             "--tunnel"
         ],
-        "justMyCode": true
+        "justMyCode": true,
+        "consoleTitle": "Expo",
     }
 
   ],
   "compounds": [
     {
-      "name": "Run - Backend: API + Worker",
+      "name": "Run - Backend",
       "configurations": [
-        "Backend: API (Uvicorn)",
-        "Backend: Celery Worker"
+        "Web API",
+        "Celery"
       ],
       "stopAll": true,
-      "preLaunchTask": "docker: start services (postgres+rabbitmq+dragonfly)",
-      "postDebugTask": "docker: stop services (postgres+rabbitmq+dragonfly)",
+      "preLaunchTask": "start services (postgres+rabbitmq+dragonfly)",
+      "postDebugTask": "stop services (postgres+rabbitmq+dragonfly)",
     },
     
     {
-      "name": "Run - Frontend + Backend",
+      "name": "Run - Expo + Backend",
       "configurations": [
-        "Run - Expo Frontend",
-        "Backend: API (Uvicorn)",
-        "Backend: Celery Worker"
+        "Expo",
+        "Web API",
+        "Celery"
       ],
       "stopAll": true,
-      "preLaunchTask": "docker: start services (postgres+rabbitmq+dragonfly)",
-      "postDebugTask": "docker: stop services (postgres+rabbitmq+dragonfly)",
+      "preLaunchTask": "start services (postgres+rabbitmq+dragonfly)",
+      "postDebugTask": "stop services (postgres+rabbitmq+dragonfly)",
     }
   ]
 }

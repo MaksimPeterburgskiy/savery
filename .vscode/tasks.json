@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "docker: start dragonfly",
+      "label": "start dragonfly",
       "type": "shell",
       "command": "bash",
       "args": [
@@ -26,7 +26,7 @@
       }
     },
     {
-      "label": "docker: start postgres",
+      "label": "start postgres",
       "type": "shell",
       "command": "bash",
       "args": [
@@ -48,7 +48,7 @@
       }
     },
     {
-      "label": "docker: start rabbitmq",
+      "label": "start rabbitmq",
       "type": "shell",
       "command": "bash",
       "args": [
@@ -70,11 +70,11 @@
       }
     },
     {
-      "label": "docker: start services (postgres+rabbitmq+dragonfly)",
+      "label": "start services (postgres+rabbitmq+dragonfly)",
       "dependsOn": [
-        "docker: start postgres",
-        "docker: start rabbitmq",
-        "docker: start dragonfly"
+        "start postgres",
+        "start rabbitmq",
+        "start dragonfly"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -82,7 +82,7 @@
       }
     },
     {
-      "label": "docker: stop services (postgres+rabbitmq+dragonfly)",
+      "label": "stop services (postgres+rabbitmq+dragonfly)",
       "type": "shell",
       "command": "bash",
       "args": [

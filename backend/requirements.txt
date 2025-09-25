@@ -5,5 +5,5 @@ python-dotenv
 celery
 SQLAlchemy
 pytest
-psycopg
+psycopg[binary]
 debugpy
