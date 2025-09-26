@@ -1,0 +1,32 @@
+Table list {
+    id integer [pk, increment]
+}
+
+Table listItem {
+    id integer [pk, increment]
+    groceryListId integer [ref: > list.id]
+    quantity integer
+}
+
+Table item {
+    upc integer [pk]
+    name varchar
+    weight integer
+    quantity integer
+}
+
+Table store [headercolor: #990D0D] {
+    id integer [pk, increment]
+    name varchar
+    city varchar
+    state varchar
+    addressLine1 varchar
+    addressLine2 varchar
+    coordinates geography(point,4326) 
+}
+
+Table storeItem {
+    itemUpc integer [pk, ref: > item.upc]
+    storeId integer [pk, ref: > store.id]
+    cost float
+}
