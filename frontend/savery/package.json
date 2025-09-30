@@ -37,7 +37,7 @@
     "@rn-primitives/tooltip": "^1.2.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "expo": "^53.0.22",
+    "expo": "^53.0.23",
     "expo-constants": "~17.1.7",
     "expo-dev-client": "~5.2.4",
     "expo-linking": "~7.1.7",

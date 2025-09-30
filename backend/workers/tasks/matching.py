@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
-
+from dataclasses import dataclass
 from celery import shared_task
+
+
 
 
 @shared_task(name="workers.matching.match_items")
@@ -38,3 +40,5 @@ def match_items(payload: dict[str, Any]) -> dict[str, Any]:
         "request": payload,
         "matched_items": matched,
     }
+
+
