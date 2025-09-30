@@ -1,32 +1,288 @@
-Table list {
-    id integer [pk, increment]
+// Enums
+Enum optimization_mode {
+  PRICE        // left: optimize price
+  BALANCED     // middle
+  SPEED        // right: optimize speed
 }
 
-Table listItem {
-    id integer [pk, increment]
-    groceryListId integer [ref: > list.id]
-    quantity integer
+Enum job_stage {
+  MATCH        // item -> store product candidates
+  PRICING      // fetch prices
+  OPTIMIZE     // build plan/route
 }
 
-Table item {
-    upc integer [pk]
-    name varchar
-    weight integer
-    quantity integer
+Enum job_status {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
 }
 
-Table store [headercolor: #990D0D] {
-    id integer [pk, increment]
-    name varchar
-    city varchar
-    state varchar
-    addressLine1 varchar
-    addressLine2 varchar
-    coordinates geography(point,4326) 
+Enum match_status {
+  PENDING
+  SELECTED     // user accepted a candidate
+  REJECTED     // user rejected all candidates for that store
+  UNMATCHED    // no viable product in this store
 }
 
-Table storeItem {
-    itemUpc integer [pk, ref: > item.upc]
-    storeId integer [pk, ref: > store.id]
-    cost float
+
+
+
+// Lists, Items
+Table shopping_lists {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  client_id      text [unique] // short token to resume without auth, eventually will be user id
+  title             text
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+}
+
+Table list_items {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  list_id           uuid [not null, ref: > shopping_lists.id]
+  raw_text_qty          text            // as typed: "12lbs"
+  raw_text_item         text            // as typed: "Chicken Thighs, Boneless Skinless"
+  item_name         text            // parsed canonical term: "chicken thighs boneless skinless"
+  qty_value         numeric         // 12
+  qty_unit          text            // "lb", "packs", etc (as entered)
+  norm_qty_value    numeric         // normalized quantity
+  norm_qty_unit     text            // base unit: "g", "ml", "count"
+  position          int             // UI order
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (list_id, position)
+  }
+}
+
+
+
+
+
+
+// Stores & Products
+Table store_chains {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  name              text        // e.g., "Kroger", "Walmart"
+  slug              text [unique]
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+}
+
+Table stores {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  chain_id          uuid [not null, ref: > store_chains.id]
+  name              text        // store display name
+  number            text        // store # if applicable
+  external_ref      jsonb       // {kroger_location_id, walmart_store_id, ...}
+  address_line1     text
+  address_line2     text
+  city              text
+  region            text        // state/province
+  postal_code       text
+  country_code      char(2)     // ISO 3166-1 alpha-2
+  latitude          double
+  longitude         double
+  timezone          text
+  hours_json        jsonb       // MVP: raw hours; can normalize later
+  phone             text
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+  geography         geography(Point,4326)
+}
+
+Table products {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  brand             text
+  name              text [not null]     // canonical name
+  upc               text                // or GTIN; nullable
+  size_text         text                // "16 oz", "1 lb", "4 ct", etc (as shown by provider)
+  pkg_qty_value     numeric             // numeric portion of package size (if parsable)
+  pkg_qty_unit      text                // "oz", "lb", "g", "ml", "ct", ...
+  base_qty_value    numeric             // normalized quantity for comparisons
+  base_qty_unit     text                // normalized unit (e.g., "g", "ml", "count")
+  // pgvector column for embeddings
+  embedding         vector(384)
+  embedding_dim     int
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  //Use Pint in workers to set base_qty_*; leave null if unknown.
+}
+
+
+Table store_products {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  store_id          uuid [not null, ref: > stores.id]
+  product_id        uuid [not null, ref: > products.id]
+  external_sku      text                // per-store identifier / SKU
+  aisle             text
+  shelf_code        text
+  product_url       text                // deep link if available
+  is_active         boolean [default: true]
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (store_id, product_id) [unique]
+    (store_id, external_sku) [unique]
+  }
+}
+
+
+Table price_entries {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  store_product_id  uuid [not null, ref: > store_products.id]
+  currency_code     char(3)  [not null, default: 'USD']
+  price             numeric(12,2)       // regular/seen price
+  unit_price        numeric(12,6)       // per base_qty_unit if computed
+  unit_price_unit   text                // e.g., "$/g", "$/ml", "$/count"
+  source            text                // 'kroger_api', 'walmart_scrape', etc.
+  fetched_at        timestamptz [default: `now()`]
+  valid_from        timestamptz
+  valid_to          timestamptz
+  is_current        boolean [default: true]
+
+  Indexes {
+    (store_product_id, is_current)
+    (store_product_id, fetched_at)
+
+  }
+
+
+  //Enforce single current row per store_product_id via partial unique index in SQL migration.
+}
+
+
+
+// Plan
+
+Table route_plans {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  list_id           uuid [not null, ref: > shopping_lists.id]
+  client_token      text [not null]  // copy of list token for ease
+  status            text [not null, default: 'draft'] // 'draft','matched','optimized','complete'
+  // User options captured on the "options" screen:
+  opt_mode          optimization_mode [not null, default: 'BALANCED']
+  lowest_unit_price boolean [default: false]  // bulk-friendly mode
+  max_stores        int   [default: 3]
+  user_latitude     double
+  user_longitude    double
+  // derived totals:
+  total_price       numeric(12,2)
+  total_distance_m  int              // meters
+  total_travel_sec  int
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (list_id)
+    (client_token)
+  }
+}
+
+Table plan_selected_stores {
+  // stores user marked/selectable on the map for this plan
+  id                uuid [pk, default: `gen_random_uuid()`]
+  plan_id           uuid [not null, ref: > route_plans.id]
+  store_id          uuid [not null, ref: > stores.id]
+  created_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (plan_id, store_id) [unique]
+  }
+}
+
+
+Table item_matches {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  plan_id           uuid [not null, ref: > route_plans.id]
+  list_item_id      uuid [not null, ref: > list_items.id]
+  store_id          uuid [not null, ref: > stores.id]
+  status            match_status [not null, default: 'PENDING']
+  chosen_store_product_id uuid [ref: > store_products.id] // set when SELECTED
+  chosen_price_entry_id   uuid [ref: > price_entries.id]  // price used when selected
+  notes             text
+  updated_by_user   boolean [default: false] // true if user hit X or chose one
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (plan_id, list_item_id, store_id) [unique]
+  }
+}
+
+
+Table item_match_candidates {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  item_match_id     uuid [not null, ref: > item_matches.id]
+  store_product_id  uuid [not null, ref: > store_products.id]
+  price_entry_id    uuid [ref: > price_entries.id]
+  rank              int               // 1..N (top 3 shown initially)
+  score             numeric(6,3)      // similarity/confidence
+  rejected_by_user  boolean [default: false]
+  created_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (item_match_id, rank) [unique]
+  }
+}
+
+Table plan_store_visits {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  plan_id           uuid [not null, ref: > route_plans.id]
+  store_id          uuid [not null, ref: > stores.id]
+  sequence          int  [not null]   // visit order starting at 1
+  travel_sec_from_prev int            // seconds from prior location
+  distance_m_from_prev int            // meters from prior location
+  subtotal_price    numeric(12,2)
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (plan_id, sequence) [unique]
+  }
+}
+
+Table plan_items {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  plan_store_visit_id uuid [not null, ref: > plan_store_visits.id]
+  list_item_id      uuid [not null, ref: > list_items.id]
+  store_product_id  uuid [not null, ref: > store_products.id]
+  price_entry_id    uuid [not null, ref: > price_entries.id]
+  // Quantity decision at purchase time:
+  qty               int    [not null, default: 1]
+  per_qty_price     numeric(12,2)
+  extended_price    numeric(12,2)   // qty * extended_price 
+  // Checklist state:
+  is_checked        boolean [default: false]
+  checked_at        timestamptz
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (plan_store_visit_id)
+    (list_item_id)
+  }
+}
+
+
+//Celery Job Tracking
+Table jobs {
+  id                uuid [pk, default: `gen_random_uuid()`]
+  plan_id           uuid [not null, ref: > route_plans.id]
+  stage             job_stage [not null]
+  status            job_status [not null, default: 'PENDING']
+  progress_current  int
+  progress_total    int
+  task_id           text            // Celery task id
+  message           text            // error or status message
+  created_at        timestamptz [default: `now()`]
+  updated_at        timestamptz [default: `now()`]
+
+  Indexes {
+    (plan_id, stage) [unique]
+    (task_id)
+  }
 }
