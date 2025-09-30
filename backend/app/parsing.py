@@ -11,6 +11,8 @@ from pint import UnitRegistry
 
 
 ureg = UnitRegistry()
+
+# Define custom count-based units
 ureg.define("bunch = 1 * count")
 ureg.define("head = 1 * count") 
 ureg.define("package = 1 * count")
@@ -22,15 +24,6 @@ ureg.define("jar = 1 * count")
 ureg.define("bottle = 1 * count")
 ureg.define("loaf = 1 * count")
 ureg.define("dozen = 12 * count")
-
-# Quantity aliases
-ureg.define("@alias pound = lb")
-ureg.define("@alias ounce = oz")
-ureg.define("@alias fluid_ounce = fl_oz")
-ureg.define("@alias kilogram = kg")
-ureg.define("@alias gram = g")
-ureg.define("@alias liter = L")
-ureg.define("@alias milliliter = ml")
 
 
 
