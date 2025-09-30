@@ -1,7 +1,7 @@
 """Application configuration via Pydantic settings."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
 
     api_prefix: str = "/api"
-    docs_url: str | None = "/docs"
-    redoc_url: str | None = "/redoc"
+    docs_url: Optional[str] = "/docs"
+    redoc_url: Optional[str] = "/redoc"
     openapi_url: str = "/openapi.json"
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/savery"
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     celery_pricing_task: str = "workers.scraping.fetch_prices"
     celery_route_task: str = "workers.optimize.plan_route"
 
-    task_status_base_url: str | None = None
+    task_status_base_url: Optional[str] = None
 
 
 @lru_cache
