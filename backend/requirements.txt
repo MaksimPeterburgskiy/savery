@@ -7,3 +7,5 @@ SQLAlchemy
 pytest
 psycopg[binary]
 debugpy
+pgvector
+geoalchemy2
