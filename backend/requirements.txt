@@ -7,3 +7,7 @@ SQLAlchemy
 pytest
 psycopg[binary]
 debugpy
+pint
+alembic
+alembic_utils
+alembic-postgresql-enum
