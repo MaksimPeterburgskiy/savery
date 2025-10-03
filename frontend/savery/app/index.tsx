@@ -8,6 +8,7 @@ import { useColorScheme } from 'nativewind';
 import * as React from 'react';
 import { Image, type ImageStyle, View } from 'react-native';
 import ItemInput from './itemInput';
+import StoreSelect from './storeselect';
 
 const LOGO = {
   light: require('@/assets/images/react-native-reusables-light.png'),

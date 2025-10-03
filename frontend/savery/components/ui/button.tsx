@@ -41,7 +41,7 @@ const buttonVariants = cva(
             'border-2 border-dashed border-[#4AA8D8] bg-transparent',
             'rounded-xl justify-center items-center'
         ),
-        store: cn(
+        continue: cn(
             'bg-[#4AA8D8] rounded-xl px-5 py-3',
             Platform.select({web: 'hover:bg-[$379AC9]'})
         ),
@@ -79,7 +79,7 @@ const buttonTextVariants = cva(
         secondary: 'text-secondary-foreground',
         ghost: 'group-active:text-accent-foreground',
         dashed: 'text-[#4AA8D8] font-semibold',
-        store: 'text-white font-semibold',
+        continue: 'text-white font-semibold',
         link: cn(
           'text-primary group-active:underline',
           Platform.select({ web: 'underline-offset-4 hover:underline group-hover:underline' })

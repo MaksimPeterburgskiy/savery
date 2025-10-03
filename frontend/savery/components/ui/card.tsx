@@ -62,7 +62,7 @@ function ItemCard({ name, onDelete }: ItemCardProps) {
   return (
     <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
       <CardContent className="w-full flex-row items-center justify-between p-0">
-        <Input placeholder="qty." keyboardType="numeric" className="w-12" />
+        <Input placeholder="qty." className="w-12" />
         <Text className="text-base text-[#000000ff]">{name}</Text>
         <Button variant="ghost" size="icon" onPress={onDelete} className="w-10 h-10 rounded-full">
             <IonIcons name="trash-outline" size={20} color="#FF5C5C" />
