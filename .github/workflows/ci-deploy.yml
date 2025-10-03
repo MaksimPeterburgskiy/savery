@@ -1,7 +1,6 @@
 name: CI Deploy
 
 on:
-  pull_request:
   push:
     branches:
       - staging
@@ -19,9 +18,6 @@ jobs:
   test:
     name: Backend Tests
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'push'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,7 +39,6 @@ jobs:
     name: Build and Push Images
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     strategy:
       matrix:
         include:
