@@ -19,3 +19,4 @@ npx expo start
 
 if you add dependencies or change `package.json`:
 eas build --platform ios --profile development
+
