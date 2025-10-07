@@ -1,7 +1,7 @@
 """Tests for item parsing functionality."""
 
 import pytest
-from core.parsing import ItemParser, ParsedItem
+from backend.core.parsing import ItemParser, ParsedItem
 
 
 class TestItemParser:
