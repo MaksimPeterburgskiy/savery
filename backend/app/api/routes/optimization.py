@@ -6,10 +6,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, status
 
+from backend.app.config import settings
 from backend.app.dependencies import get_db
 from backend.app.models import OptimizationRequest, OptimizationResponse
-from backend.core.config import settings
-from backend.core.tasks import enqueue_optimization_job
+from backend.app.tasks import enqueue_optimization_job
 
 router = APIRouter()
 

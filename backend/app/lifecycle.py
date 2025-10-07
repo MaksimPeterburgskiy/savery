@@ -5,8 +5,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from backend.core.config import settings
-from backend.core.migrations import ensure_database_revision
+from backend.app.config import settings
+from backend.app.db import create_db_and_tables
+from backend.app.migrations import upgrade_to_head
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,9 @@ async def lifespan(app: FastAPI):
 
     if settings.verify_schema_on_startup:
         try:
-            ensure_database_revision()
+            upgrade_to_head()
         except Exception as exc:  # pragma: no cover - guard rails for misconfigured DB
-            logger.error("Database schema check failed: %s", exc)
+            logger.error("Database migration failed: %s", exc)
             raise
 
     # Insert startup initialization (DB, caches, etc.) here.

@@ -7,7 +7,7 @@ from typing import Any
 from celery import chain
 from celery.result import AsyncResult
 
-from backend.core.config import settings
+from backend.app.config import settings
 from backend.workers.celery_app import celery_app
 
 MATCHING_TASK = settings.celery_matching_task

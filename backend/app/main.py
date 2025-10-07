@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from backend.core.config import settings
+from backend.app.config import settings
 
 from .api import api_router
 from .lifecycle import lifespan
