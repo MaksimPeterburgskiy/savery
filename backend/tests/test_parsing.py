@@ -66,28 +66,29 @@ class TestItemParser:
         assert result.normalized_unit == "ml"
         assert round(result.normalized_quantity,1) == 1000.0
 
-    # def test_parse_list_multiple_items(self):
-    #     """Test parsing multiple items."""
-    #     items = [
-    #         "2 lbs ground beef",
-    #         "1 gallon milk", 
-    #         "3 tomatoes",
-    #         "bread"
-    #     ]
+    def test_parse_list_multiple_items(self):
+        """Test parsing multiple items."""
+        items = [
+            "2 lbs ground beef",
+            "1 gallon milk", 
+            "3 tomatoes",
+            "bread"
+        ]
         
-    #     results = self.parser.parse_list(items)
+        results = self.parser.parse_list(items)
         
-    #     assert len(results) == 4
-    #     assert results[0].name == "ground beef"
-    #     assert results[1].name == "milk"
-    #     assert results[2].name == "tomatoes"
-    #     assert results[3].name == "bread"
+        assert len(results) == 4
+        assert results[0].name == "ground beef"
+        assert results[1].name == "milk"
+        assert results[2].name == "tomatoes"
+        assert results[3].name == "bread"
     
     def test_empty_item(self):
         """Test parsing empty item."""
         result = self.parser.parse("")
         assert result.name == ""
         assert "Empty item text" in (result.notes or "")
+
 
 
 if __name__ == "__main__":
