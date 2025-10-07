@@ -37,6 +37,8 @@ class Settings(BaseSettings):
 
     task_status_base_url: Optional[str] = None
 
+    verify_schema_on_startup: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

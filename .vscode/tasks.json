@@ -8,7 +8,7 @@
       "command": "bash",
       "args": [
         "-lc",
-        "if docker ps -a --format '{{.Names}}' | grep -q '^savery-dragonfly$'; then docker start savery-dragonfly >/dev/null || true; else docker run -d --name savery-dragonfly -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly >/dev/null; fi"
+        "if docker ps -a --format '{{.Names}}' | grep -q '^savery-dragonfly$'; then docker start savery-dragonfly >/dev/null || true; else docker run -d --name savery-dragonfly -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly --proactor_threads=2 >/dev/null; fi"
       ],
       "problemMatcher": [],
 
@@ -21,7 +21,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "docker container inspect 'savery-dragonfly' > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start 'savery-dragonfly' | Out-Null } else { docker run -d --name 'savery-dragonfly' -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly | Out-Null }"
+          "docker container inspect 'savery-dragonfly' > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start 'savery-dragonfly' | Out-Null } else { docker run -d --name 'savery-dragonfly' -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly --proactor_threads=2 | Out-Null }"
         ]
       }
     },

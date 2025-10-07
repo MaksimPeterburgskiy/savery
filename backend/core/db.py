@@ -72,27 +72,3 @@ def session_scope() -> Generator[Any, None, None]:
         raise
     finally:
         session.close()
-
-
-def init_db() -> None:
-    """Create database tables based on SQLAlchemy models if available."""
-
-    engine = get_engine()
-
-    try:
-        from backend.core import schema
-    except ModuleNotFoundError:
-        # Schema definitions are optional during skeleton phase.
-        return
-
-    base = getattr(schema, "Base", None)
-    metadata = getattr(base, "metadata", None)
-
-    if metadata is not None:
-        try:
-            metadata.create_all(bind=engine)
-        except Exception as exc:  # pragma: no cover - requires broken DB connection
-            logger.warning(
-                "Skipping database initialization (is Postgres running?): %s",
-                exc,
-            )
