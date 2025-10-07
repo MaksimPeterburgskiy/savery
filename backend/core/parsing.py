@@ -26,8 +26,8 @@ ureg.define("loaf = 1 * count")
 ureg.define("dozen = 12 * count")
 
 
-
-
+FLUID_UNITS = ["L", "liter", "liters", "l", "ml", "milliliter", "fl_oz", "fluid_ounce", "cup", "cups", "tablespoon", "tablespoons", "tbsp", "teaspoon", "teaspoons", "tsp", "quart", "quarts", "pint", "pints", "gallon", "gallons"]
+WEIGHT_UNITS = ["lbs", "lb", "pound", "pounds", "oz", "ounce", "ounces", "kg", "kilogram", "g", "gram", "grams"]
 @dataclass
 class ParsedItem:
     original_text: str
@@ -57,6 +57,7 @@ class ItemParser:
         self.ureg = ureg
 
     def parse(self, text: str) -> ParsedItem:
+        '''Parse an ingredient text into its components: name, quantity, unit, and notes.'''
         quantity = None
         unit = None
         text = text.strip()
@@ -118,7 +119,6 @@ class ItemParser:
         if unit is not None:    
             if original_unit in split_text:
                 split_text.remove(original_unit)
-        print("Split text after removal:", split_text)
 
         name = " ".join([w for w in split_text])
         item =  ParsedItem(
@@ -134,8 +134,9 @@ class ItemParser:
         return self.convert_to_normalized_units(item)
     
 
-
+    
     def convert_to_normalized_units(self, item: ParsedItem) -> ParsedItem:
+        '''Convert the item's quantity and unit to normalized forms (grams for weight, milliliters for volume).'''
         if item.unit is None or item.quantity is None:
             return item
         print("Converting:", item)
@@ -156,10 +157,10 @@ class ItemParser:
             "gallon": "gallon", "gallons": "gallon",
         }
         
-        # Set normalized units (what we want to convert TO)
-        if item.unit in ["lbs", "lb", "pound", "pounds", "oz", "ounce", "ounces", "kg", "kilogram", "g", "gram", "grams"]:
+        
+        if item.unit in WEIGHT_UNITS:
             item.normalized_unit = "g"
-        elif item.unit in ["L", "liter", "liters", "l", "ml", "milliliter", "fl_oz", "fluid_ounce", "cup", "cups", "tablespoon", "tablespoons", "tbsp", "teaspoon", "teaspoons", "tsp", "quart", "quarts", "pint", "pints", "gallon", "gallons"]:
+        elif item.unit in FLUID_UNITS:
             item.normalized_unit = "ml"
         elif item.unit in ["bunch", "head", "package", "pkg", "bag", "bags", "box", "boxes", "can", "cans",
                            "jar", "jars","bottle", "bottles", "loaf", "loaves", "dozen", "count"]:    
@@ -198,5 +199,12 @@ class ItemParser:
                 item.notes += f" Conversion error: {str(e)}"
             else:
                 item.notes = f"Conversion error: {str(e)}"
-
+        
+        #round the normalized quantity to 3 decimal places
+        item.normalized_quantity = round(item.normalized_quantity, 3)
         return item
+    
+    
+    def parse_list(self, items: list[str]) -> list[ParsedItem]:
+        '''Parse a list of items.'''
+        return [self.parse(item) for item in items]
