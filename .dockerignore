@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite
+.Python
+env/
+venv/
+.git
+.gitignore
+ui-mockups/
+frontend/
+infra/nginx/*.log
+*.DS_Store
