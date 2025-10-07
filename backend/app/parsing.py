@@ -106,9 +106,7 @@ class ItemParser:
             notes = "No quantity detected."
 
 
-        if quantity is not None and unit is None:
-            print("Quantity:", quantity, "Unit:", unit)
-            print("Split text before removal:", split_text)
+
 
         if quantity is not None:
             if str(float(quantity)) in split_text:
