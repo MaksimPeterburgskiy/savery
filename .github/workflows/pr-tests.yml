@@ -5,6 +5,8 @@ on:
 
 permissions:
   contents: read
+  checks: write
+  pull-requests: write
 
 env:
   PYTHON_VERSION: "3.12"
@@ -28,4 +30,14 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run tests
-        run: pytest backend/tests
+        run: |
+          mkdir -p reports
+          pytest backend/tests --junitxml=reports/pytest.xml
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: reports/pytest.xml
+          check_name: Backend Tests
+          comment_mode: always
