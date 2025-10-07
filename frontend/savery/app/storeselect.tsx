@@ -34,7 +34,7 @@ function StoreSelect() {
             <Text style={{ color: 'black' }}>Map for Price Based Search</Text>
             {/* <Button variant="store"></Button> */}
           </View>
-          <Link href="/itemInput" asChild>
+          <Link href="/itemMatch" asChild>
             <Button variant="continue" size="xl">
               <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
               <Ionicons name="arrow-forward" size={20} color="white" />
@@ -45,7 +45,7 @@ function StoreSelect() {
           <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
             <Text style={{ color: 'black' }}>Map for Distance Based Search</Text>
           </View>
-          <Link href="/itemInput" asChild>
+          <Link href="/itemMatch" asChild>
             <Button variant="continue" size="xl">
               <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
               <Ionicons name="arrow-forward" size={20} color="white" />
@@ -56,7 +56,7 @@ function StoreSelect() {
           <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
             <Text style={{ color: 'black' }}>Map for Unit Price Based Search</Text>
           </View>
-          <Link href="/itemInput" asChild>
+          <Link href="/itemMatch" asChild>
             <Button variant="continue" size="xl">
               <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
               <Ionicons name="arrow-forward" size={20} color="white" />
