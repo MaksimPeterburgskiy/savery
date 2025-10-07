@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from backend.core.config import settings
+from backend.app.config import settings
 
 router = APIRouter()
 
