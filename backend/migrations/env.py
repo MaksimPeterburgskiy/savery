@@ -1,104 +1,64 @@
-"""Alembic environment configuration wired to the Savery ORM models."""
+"""Alembic environment bridging SQLModel metadata."""
 
 from __future__ import annotations
 
+import asyncio
 from logging.config import fileConfig
-from pathlib import Path
-import sys
+from typing import Iterable
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlmodel import SQLModel
 
-# Third-party helpers enabling richer autogenerate support.
-try:  # pragma: no cover - optional dependency late in setup
-    import alembic_postgresql_enum  # noqa: F401
-except ModuleNotFoundError:  # pragma: no cover - triggered before dependency install
-    alembic_postgresql_enum = None
+from backend.app.config import settings
+from backend.app.db import get_engine
 
-try:  # pragma: no cover - optional dependency late in setup
-    from alembic_utils.replaceable_entity import register_entities
-except ModuleNotFoundError:  # pragma: no cover - triggered before dependency install
-    register_entities = None
+# import models so SQLModel metadata is populated
+from backend.app import models  # noqa: F401
 
-
-ROOT_DIR = Path(__file__).resolve().parents[2]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from backend.core.alembic_entities import iter_replaceable_entities  # noqa: E402
-from backend.core.config import settings  # noqa: E402  (import after sys.path tweak)
-from backend.core.schema import Base  # noqa: E402
-
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
-
-config.set_main_option("sqlalchemy.url", settings.database_url)
-
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Metadata used for autogenerate.
-target_metadata = Base.metadata
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
-if register_entities is not None:
-    register_entities(list(iter_replaceable_entities()))
+target_metadata = SQLModel.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
+    """Run migrations in 'offline' mode."""
 
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(
-        url=url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
-        compare_type=True,
-        compare_server_default=True,
-    )
+    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def _run_sync_migrations(connection) -> None:
+    context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """Run migrations in 'online' mode."""
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
+    connectable = get_engine()
 
-    """
-    configuration = config.get_section(config.config_ini_section, {}).copy()
-    configuration["sqlalchemy.url"] = settings.database_url
+    def _run_with_connection(connection):
+        _run_sync_migrations(connection)
 
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    if getattr(connectable, "dialect", None) and connectable.dialect.is_async:
+        async def _run_async():
+            async with connectable.connect() as connection:
+                await connection.run_sync(_run_sync_migrations)
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
+        asyncio.run(_run_async())
+    else:
+        with connectable.connect() as connection:
+            _run_with_connection(connection)
 
 
 if context.is_offline_mode():

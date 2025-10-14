@@ -3,7 +3,7 @@
 from celery import Celery
 from kombu import Queue
 
-from backend.core.config import settings
+from backend.app.config import settings
 
 
 celery_app = Celery("savery")

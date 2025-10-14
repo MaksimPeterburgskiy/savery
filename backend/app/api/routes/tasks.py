@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from backend.app.models import TaskStatusResponse
-from backend.core.tasks import get_task_status
+from backend.app.tasks import get_task_status
 
 router = APIRouter()
 
