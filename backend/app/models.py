@@ -7,6 +7,8 @@ from typing import Any
 from uuid import UUID
 import uuid
 
+from geoalchemy2 import Geography
+from pgvector import Vector
 from sqlmodel import Enum, Field, Relationship, SQLModel, JSON, Index
 
 
@@ -54,6 +56,7 @@ class ShoppingList(Base, table=True):
     list_items: list["ListItem"] = Relationship(back_populates="list")
     route_plans: list["RoutePlan"] = Relationship(back_populates="list")
 
+
 class ListItem(Base):
     # __table_args__ = (Index("ix_list_items_list_id_position", "list_id", "position"),)
 
@@ -75,15 +78,12 @@ class ListItem(Base):
 
 
 class StoreChain(Base):
-    __tablename__ = "store_chains"
-
     name: str
 
     stores: list[Store] = Relationship(back_populates="chain")
 
 
 class Store(Base):
-    __tablename__ = "stores"
 
     name: str
     number: str
@@ -105,15 +105,12 @@ class Store(Base):
 
     chain: StoreChain = Relationship(back_populates="stores")
     store_products: list[StoreProduct] = Relationship(back_populates="store")
-    plan_selected: list[PlanSelectedStore] = Relationship(
-        back_populates="store"
-    )
+    plan_selected: list[PlanSelectedStore] = Relationship(back_populates="store")
     store_visits: list[PlanStoreVisit] = Relationship(back_populates="store")
     item_matches: list[ItemMatch] = Relationship(back_populates="store")
 
 
 class Product(Base):
-    __tablename__ = "products"
 
     brand: str
     name: str = Field(nullable=False)
@@ -130,27 +127,24 @@ class Product(Base):
 
 
 class StoreProduct(Base):
-    __tablename__ = "store_products"
-    __table_args__ = (
-        UniqueConstraint(
-            "store_id", "product_id", name="uq_store_products_store_product"
-        ),
-        UniqueConstraint(
-            "store_id", "external_sku", name="uq_store_products_store_sku"
-        ),
-    )
+    # __table_args__ = (
+    #     UniqueConstraint(
+    #         "store_id", "product_id", name="uq_store_products_store_product"
+    #     ),
+    #     UniqueConstraint(
+    #         "store_id", "external_sku", name="uq_store_products_store_sku"
+    #     ),
+    # )
 
     external_sku: str
     aisle: str
     shelf_code: str
     product_url: str
-    is_active: bool = Field(server_default="true", nullable=False)
+    is_active: bool = Field(default=True, nullable=False)
 
     store: Store = Relationship(back_populates="store_products")
     product: Product = Relationship(back_populates="store_products")
-    price_entries: list[PriceEntry] = Relationship(
-        back_populates="store_product"
-    )
+    price_entries: list[PriceEntry] = Relationship(back_populates="store_product")
     plan_items: list[PlanItem] = Relationship(back_populates="store_product")
     chosen_for_matches: list[ItemMatch] = Relationship(
         back_populates="chosen_store_product"
@@ -161,30 +155,27 @@ class StoreProduct(Base):
 
 
 class PriceEntry(Base):
-    __tablename__ = "price_entries"
-    __table_args__ = (
-        Index(
-            "ix_price_entries_store_product_is_current",
-            "store_product_id",
-            "is_current",
-        ),
-        Index(
-            "ix_price_entries_store_product_fetched_at",
-            "store_product_id",
-            "fetched_at",
-        ),
-    )
+    # __table_args__ = (
+    #     Index(
+    #         "ix_price_entries_store_product_is_current",
+    #         "store_product_id",
+    #         "is_current",
+    #     ),
+    #     Index(
+    #         "ix_price_entries_store_product_fetched_at",
+    #         "store_product_id",
+    #         "fetched_at",
+    #     ),
+    # )
 
-    currency_code: str = Field(
-        String(3), nullable=False, server_default="USD"
-    )
-    price: float = Field(Numeric(12, 2))
-    unit_price: float = Field(Numeric(12, 6))
+    currency_code: str = Field(max_length=3, nullable=False, default="USD")
+    price: float
+    unit_price: float
     unit_price_unit: str
     source: str
     valid_from: datetime
     valid_to: datetime
-    is_current: bool = Field(server_default="true", nullable=False)
+    is_current: bool = Field(default=True, nullable=False)
 
     store_product: StoreProduct = Relationship(back_populates="price_entries")
     plan_items: list[PlanItem] = Relationship(back_populates="price_entry")
@@ -200,76 +191,59 @@ class PriceEntry(Base):
 
 
 class RoutePlan(Base):
-    __tablename__ = "route_plans"
-    __table_args__ = (
-        Index("ix_route_plans_list_id", "list_id"),
-        Index("ix_route_plans_client_token", "client_token"),
-    )
+    # __tablename__ = "route_plans"
+    # __table_args__ = (
+    #     Index("ix_route_plans_list_id", "list_id"),
+    #     Index("ix_route_plans_client_token", "client_token"),
+    # )
 
-    client_token: str = Field(String, nullable=False, index=True)
-    status: str = Field(String, nullable=False, server_default="draft")
+    client_token: str = Field(nullable=False, index=True)
+    status: str = Field(nullable=False, default="draft")
     opt_mode: OptimizationMode = Field(
-        SAEnum(OptimizationMode, name="optimization_mode"),
         nullable=False,
-        server_default="BALANCED",
+        default=OptimizationMode.BALANCED,
     )
-    lowest_unit_price: bool = Field(
-        server_default="false", nullable=False
-    )
-    max_stores: int = Field(server_default="3")
+    lowest_unit_price: bool = Field(default=False, nullable=False)
+    max_stores: int = Field(default=3)
     user_latitude: float
     user_longitude: float
-    total_price: float = Field(Numeric(12, 2))
+    total_price: float
     total_distance_m: int
     total_travel_sec: int
 
     list: ShoppingList = Relationship(back_populates="route_plans")
-    selected_stores: list[PlanSelectedStore] = Relationship(
-        back_populates="plan", cascade="all,delete-orphan"
-    )
-    item_matches: list[ItemMatch] = Relationship(
-        back_populates="plan", cascade="all,delete-orphan"
-    )
-    store_visits: list[PlanStoreVisit] = Relationship(
-        back_populates="plan", cascade="all,delete-orphan"
-    )
-    jobs: list[Job] = Relationship(
-        back_populates="plan", cascade="all,delete-orphan"
-    )
+    selected_stores: list[PlanSelectedStore] = Relationship(back_populates="plan")
+    item_matches: list[ItemMatch] = Relationship(back_populates="plan")
+    store_visits: list[PlanStoreVisit] = Relationship(back_populates="plan")
+    jobs: list[Job] = Relationship(back_populates="plan")
 
 
 class PlanSelectedStore(Base):
-    __tablename__ = "plan_selected_stores"
-    __table_args__ = (
-        UniqueConstraint(
-            "plan_id", "store_id", name="uq_plan_selected_stores_plan_store"
-        ),
-    )
+    # __tablename__ = "plan_selected_stores"
+    # __table_args__ = (
+    #     UniqueConstraint(
+    #         "plan_id", "store_id", name="uq_plan_selected_stores_plan_store"
+    #     ),
+    # )
 
     plan: RoutePlan = Relationship(back_populates="selected_stores")
     store: Store = Relationship(back_populates="plan_selected")
 
 
 class ItemMatch(Base):
-    __tablename__ = "item_matches"
-    __table_args__ = (
-        UniqueConstraint(
-            "plan_id",
-            "list_item_id",
-            "store_id",
-            name="uq_item_matches_plan_item_store",
-        ),
-    )
+    # __tablename__ = "item_matches"
+    # __table_args__ = (
+    #     UniqueConstraint(
+    #         "plan_id",
+    #         "list_item_id",
+    #         "store_id",
+    #         name="uq_item_matches_plan_item_store",
+    #     ),
+    # )
 
-    status: MatchStatus = Field(
-        SAEnum(MatchStatus, name="match_status"),
-        nullable=False,
-        server_default="PENDING",
-    )
+    status: MatchStatus = Field(nullable=False, default=MatchStatus.PENDING)
     notes: str
-    updated_by_user: bool = Field(
-        server_default="false", nullable=False
-    )
+    updated_by_user: bool = Field(default=False, nullable=False)
 
     plan: RoutePlan = Relationship(back_populates="item_matches")
     list_item: ListItem = Relationship(back_populates="item_matches")
@@ -277,27 +251,21 @@ class ItemMatch(Base):
     chosen_store_product: StoreProduct = Relationship(
         back_populates="chosen_for_matches"
     )
-    chosen_price_entry: PriceEntry = Relationship(
-        back_populates="chosen_for_matches"
-    )
-    candidates: list[ItemMatchCandidate] = Relationship(
-        back_populates="item_match", cascade="all,delete-orphan"
-    )
+    chosen_price_entry: PriceEntry = Relationship(back_populates="chosen_for_matches")
+    candidates: list[ItemMatchCandidate] = Relationship(back_populates="item_match")
 
 
 class ItemMatchCandidate(Base):
-    __tablename__ = "item_match_candidates"
-    __table_args__ = (
-        UniqueConstraint(
-            "item_match_id", "rank", name="uq_item_match_candidates_match_rank"
-        ),
-    )
+    # __tablename__ = "item_match_candidates"
+    # __table_args__ = (
+    #     UniqueConstraint(
+    #         "item_match_id", "rank", name="uq_item_match_candidates_match_rank"
+    #     ),
+    # )
 
     rank: int
-    score: float = Field(Numeric(6, 3))
-    rejected_by_user: bool = Field(
-        server_default="false", nullable=False
-    )
+    score: float
+    rejected_by_user: bool = Field(default=False, nullable=False)
 
     item_match: ItemMatch = Relationship(back_populates="candidates")
     store_product: StoreProduct = Relationship(back_populates="candidate_rows")
@@ -305,36 +273,34 @@ class ItemMatchCandidate(Base):
 
 
 class PlanStoreVisit(Base):
-    __tablename__ = "plan_store_visits"
-    __table_args__ = (
-        UniqueConstraint(
-            "plan_id", "sequence", name="uq_plan_store_visits_plan_sequence"
-        ),
-    )
+    # __tablename__ = "plan_store_visits"
+    # __table_args__ = (
+    #     UniqueConstraint(
+    #         "plan_id", "sequence", name="uq_plan_store_visits_plan_sequence"
+    #     ),
+    # )
 
     sequence: int = Field(nullable=False)
     travel_sec_from_prev: int
     distance_m_from_prev: int
-    subtotal_price: float = Field(Numeric(12, 2))
+    subtotal_price: float
 
     plan: RoutePlan = Relationship(back_populates="store_visits")
     store: Store = Relationship(back_populates="store_visits")
-    plan_items: list[PlanItem] = Relationship(
-        back_populates="plan_store_visit", cascade="all,delete-orphan"
-    )
+    plan_items: list[PlanItem] = Relationship(back_populates="plan_store_visit")
 
 
 class PlanItem(Base):
-    __tablename__ = "plan_items"
-    __table_args__ = (
-        Index("ix_plan_items_plan_store_visit_id", "plan_store_visit_id"),
-        Index("ix_plan_items_list_item_id", "list_item_id"),
-    )
+    # __tablename__ = "plan_items"
+    # __table_args__ = (
+    #     Index("ix_plan_items_plan_store_visit_id", "plan_store_visit_id"),
+    #     Index("ix_plan_items_list_item_id", "list_item_id"),
+    # )
 
-    qty: int = Field(nullable=False, server_default="1")
-    per_qty_price: float = Field(Numeric(12, 2))
-    extended_price: float = Field(Numeric(12, 2))
-    is_checked: bool = Field(server_default="false", nullable=False)
+    qty: int = Field(nullable=False, default=1)
+    per_qty_price: float
+    extended_price: float
+    is_checked: bool = Field(default=False, nullable=False)
     checked_at: datetime
 
     plan_store_visit: PlanStoreVisit = Relationship(back_populates="plan_items")
@@ -347,20 +313,14 @@ class PlanItem(Base):
 
 
 class Job(Base):
-    __tablename__ = "jobs"
-    __table_args__ = (
-        UniqueConstraint("plan_id", "stage", name="uq_jobs_plan_stage"),
-        Index("ix_jobs_task_id", "task_id"),
-    )
+    # __tablename__ = "jobs"
+    # __table_args__ = (
+    #     UniqueConstraint("plan_id", "stage", name="uq_jobs_plan_stage"),
+    #     Index("ix_jobs_task_id", "task_id"),
+    # )
 
-    stage: JobStage = Field(
-        SAEnum(JobStage, name="job_stage"), nullable=False
-    )
-    status: JobStatus = Field(
-        SAEnum(JobStatus, name="job_status"),
-        nullable=False,
-        server_default="PENDING",
-    )
+    stage: JobStage = Field(default=JobStage.MATCH, nullable=False)
+    status: JobStatus = Field(default=JobStatus.PENDING, nullable=False)
     progress_current: int
     progress_total: int
     task_id: str = Field(index=True)
