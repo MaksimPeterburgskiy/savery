@@ -1,4 +1,3 @@
-"""Item matching pipeline tasks."""
 
 from __future__ import annotations
 
@@ -6,7 +5,6 @@ from typing import Any
 from dataclasses import dataclass
 import re
 
-import pint 
 from pint import UnitRegistry
 
 
