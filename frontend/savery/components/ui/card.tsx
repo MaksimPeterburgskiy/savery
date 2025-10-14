@@ -14,6 +14,7 @@ import { Ionicons as IonIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CardStyle } from '@/lib/theme';
 
 // ---- Types ----
 export interface Item {
@@ -139,7 +140,7 @@ const StoreList: React.FC = () => {
       data={stores}
       keyExtractor={(store) => store.id}
       renderItem={renderStore}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={CardStyle.container}
     />
   );
 };
@@ -148,111 +149,43 @@ interface StoreCardProps {
   store: Store;
 }
 
-const StoreCard: React.FC<StoreCardProps> = ({ store }) => (
-  <View style={styles.card}>
-    <View style={styles.header}>
-      <Text style={styles.storeName}>
-        {store.name} - {store.distance}
-      </Text>
-      <Text style={styles.totalCost}>${store.totalCost.toFixed(2)}</Text>
-    </View>
+const StoreCard: React.FC<StoreCardProps> = ({ store }) => {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-    {store.items.map((item) => (
-      <View key={item.id} style={styles.itemRow}>
-        <View style={styles.imagePlaceholder} />
-        <View style={styles.itemInfo}>
-          <Text style={styles.itemName}>{item.name}</Text>
-          <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-        </View>
-        {/* <Checkbox accessibilityLabel={`Select ${item.name}`} checked={false} onCheckedChange={function (checked: boolean): void {
-                checked = !checked;
-            }} /> */}
+  return (
+    <View style={CardStyle.card}>
+      <View style={CardStyle.header}>
+        <Text style={CardStyle.storeName}>
+          {store.name} - {store.distance}
+        </Text>
+        <Text style={CardStyle.totalCost}>${store.totalCost.toFixed(2)}</Text>
       </View>
-    ))}
-  </View>
-);
 
-const styles = StyleSheet.create({
-  container: {
-    // padding: 16,
-  },
-  card: {
-    backgroundColor: '#EDEDED',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  storeName: {
-    fontWeight: '700',
-    color: '#000',
-  },
-  totalCost: {
-    fontWeight: '700',
-    color: '#000',
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 8,
-    marginTop: 6,
-  },
-  imagePlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#D3D3D3',
-    marginRight: 10,
-  },
-  itemInfo: {
-    color: '#000',
-    flex: 1,
-  },
-  itemName: {
-    color: '#000',
-    fontWeight: '600',
-  },
-  itemPrice: {
-    color: '#555',
-  },
-  checkContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#4ADE80',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  xContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#FF5C5C',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkIcon: {
-    color: '#4ADE80',
-    fontWeight: '700',
-  },
-  xIcon: {
-    color: '#FF5C5C',
-    fontWeight: '700',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
+      {store.items.map((item) => (
+        <View key={item.id} style={CardStyle.itemRow}>
+          <View style={CardStyle.imagePlaceholder} />
+          <View style={CardStyle.itemInfo}>
+            <Text style={CardStyle.itemName}>{item.name}</Text>
+            <Text style={CardStyle.itemPrice}>${item.price.toFixed(2)}</Text>
+          </View>
+          
+          <Checkbox style={CardStyle.checkContainer}
+            accessibilityLabel={`Select ${item.name}`}
+            checked={selectedIds.has(item.id)}
+            onCheckedChange={(v: boolean) => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (v) next.add(item.id);
+                else next.delete(item.id);
+                return next;
+              });
+            }}
+          />
+        </View>
+      ))}
+    </View>
+  );
+};
 
 export {
   Card,

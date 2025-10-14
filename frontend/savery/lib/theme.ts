@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
+import { StyleSheet } from 'react-native';
  
 export const THEME = {
   light: {
@@ -79,3 +80,85 @@ export const NAV_THEME: Record<'light' | 'dark', Theme> = {
     },
   },
 };
+
+export const CardStyle = StyleSheet.create({
+    container: {
+        // padding: 16,
+    },
+    card: {
+        backgroundColor: '#EDEDED',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16,
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    storeName: {
+        fontWeight: '700',
+        color: '#000',
+    },
+    totalCost: {
+        fontWeight: '700',
+        color: '#000',
+    },
+    itemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        padding: 8,
+        marginTop: 6,
+    },
+    imagePlaceholder: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        backgroundColor: '#D3D3D3',
+        marginRight: 10,
+    },
+    itemInfo: {
+        color: '#000',
+        flex: 1,
+    },
+    itemName: {
+        color: '#000',
+        fontWeight: '600',
+    },
+    itemPrice: {
+        color: '#555',
+    },
+    checkContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 14,
+        // borderWidth: 2,
+        // borderColor: '#4ADE80',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    xContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 14,
+        // borderWidth: 2,
+        // borderColor: '#FF5C5C',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkIcon: {
+        color: '#4ADE80',
+        fontWeight: '700',
+    },
+    xIcon: {
+        color: '#FF5C5C',
+        fontWeight: '700',
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+});
