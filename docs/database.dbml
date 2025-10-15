@@ -65,7 +65,6 @@ Table list_items {
 Table store_chains {
   id                uuid [pk, default: `gen_random_uuid()`]
   name              text        // e.g., "Kroger", "Walmart"
-  slug              text [unique]
   created_at        timestamptz [default: `now()`]
   updated_at        timestamptz [default: `now()`]
 }
