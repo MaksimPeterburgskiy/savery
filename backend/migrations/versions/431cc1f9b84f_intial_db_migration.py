@@ -4,6 +4,10 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+import geoalchemy2
+from pgvector.sqlalchemy import Vector
+import sqlmodel
+
 
 revision = '431cc1f9b84f'
 down_revision = None
@@ -25,7 +29,7 @@ def upgrade() -> None:
     sa.Column('pkg_qty_unit', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('base_qty_value', sa.Float(), nullable=True),
     sa.Column('base_qty_unit', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True),
+    sa.Column('embedding', Vector(dim=384), nullable=True),
     sa.Column('embedding_dim', sa.Integer(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
@@ -37,7 +41,7 @@ def upgrade() -> None:
     sa.Column('title', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_shopping_lists_client_id'), 'shopping_lists', ['client_id'], unique=True)
+    op.create_index(op.f('ix_shopping_lists_client_id'), 'shopping_lists', ['client_id'], unique=True, if_not_exists=True)
     op.create_table('store_chains',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -61,8 +65,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['list_id'], ['shopping_lists.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_list_items_list_id'), 'list_items', ['list_id'], unique=False)
-    op.create_index('ix_list_items_list_id_position', 'list_items', ['list_id', 'position'], unique=False)
+    op.create_index(op.f('ix_list_items_list_id'), 'list_items', ['list_id'], unique=False, if_not_exists=True)
+    op.create_index('ix_list_items_list_id_position', 'list_items', ['list_id', 'position'], unique=False, if_not_exists=True)
     op.create_table('route_plans',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -81,8 +85,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['list_id'], ['shopping_lists.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_route_plans_client_token'), 'route_plans', ['client_token'], unique=False)
-    op.create_index(op.f('ix_route_plans_list_id'), 'route_plans', ['list_id'], unique=False)
+    op.create_index(op.f('ix_route_plans_client_token'), 'route_plans', ['client_token'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_route_plans_list_id'), 'route_plans', ['list_id'], unique=False, if_not_exists=True)
     op.create_table('stores',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -106,8 +110,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['chain_id'], ['store_chains.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('idx_stores_geography', 'stores', ['geography'], unique=False, postgresql_using='gist')
-    op.create_index(op.f('ix_stores_chain_id'), 'stores', ['chain_id'], unique=False)
+    op.create_index('idx_stores_geography', 'stores', ['geography'], unique=False, postgresql_using='gist', if_not_exists=True)
+    op.create_index(op.f('ix_stores_chain_id'), 'stores', ['chain_id'], unique=False, if_not_exists=True)
     op.create_table('jobs',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -123,8 +127,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('plan_id', 'stage', name='uq_jobs_plan_stage')
     )
-    op.create_index(op.f('ix_jobs_plan_id'), 'jobs', ['plan_id'], unique=False)
-    op.create_index(op.f('ix_jobs_task_id'), 'jobs', ['task_id'], unique=False)
+    op.create_index(op.f('ix_jobs_plan_id'), 'jobs', ['plan_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_jobs_task_id'), 'jobs', ['task_id'], unique=False, if_not_exists=True)
     op.create_table('plan_selected_stores',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -136,8 +140,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('plan_id', 'store_id', name='uq_plan_selected_stores_plan_store')
     )
-    op.create_index(op.f('ix_plan_selected_stores_plan_id'), 'plan_selected_stores', ['plan_id'], unique=False)
-    op.create_index(op.f('ix_plan_selected_stores_store_id'), 'plan_selected_stores', ['store_id'], unique=False)
+    op.create_index(op.f('ix_plan_selected_stores_plan_id'), 'plan_selected_stores', ['plan_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_plan_selected_stores_store_id'), 'plan_selected_stores', ['store_id'], unique=False, if_not_exists=True)
     op.create_table('plan_store_visits',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -153,8 +157,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('plan_id', 'sequence', name='uq_plan_store_visits_plan_sequence')
     )
-    op.create_index(op.f('ix_plan_store_visits_plan_id'), 'plan_store_visits', ['plan_id'], unique=False)
-    op.create_index(op.f('ix_plan_store_visits_store_id'), 'plan_store_visits', ['store_id'], unique=False)
+    op.create_index(op.f('ix_plan_store_visits_plan_id'), 'plan_store_visits', ['plan_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_plan_store_visits_store_id'), 'plan_store_visits', ['store_id'], unique=False, if_not_exists=True)
     op.create_table('store_products',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -172,8 +176,8 @@ def upgrade() -> None:
     sa.UniqueConstraint('store_id', 'external_sku', name='uq_store_products_store_sku'),
     sa.UniqueConstraint('store_id', 'product_id', name='uq_store_products_store_product')
     )
-    op.create_index(op.f('ix_store_products_product_id'), 'store_products', ['product_id'], unique=False)
-    op.create_index(op.f('ix_store_products_store_id'), 'store_products', ['store_id'], unique=False)
+    op.create_index(op.f('ix_store_products_product_id'), 'store_products', ['product_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_store_products_store_id'), 'store_products', ['store_id'], unique=False, if_not_exists=True)
     op.create_table('price_entries',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -191,9 +195,9 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['store_product_id'], ['store_products.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_price_entries_store_product_fetched_at', 'price_entries', ['store_product_id', 'fetched_at'], unique=False)
-    op.create_index(op.f('ix_price_entries_store_product_id'), 'price_entries', ['store_product_id'], unique=False)
-    op.create_index('ix_price_entries_store_product_is_current', 'price_entries', ['store_product_id', 'is_current'], unique=False)
+    op.create_index('ix_price_entries_store_product_fetched_at', 'price_entries', ['store_product_id', 'fetched_at'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_price_entries_store_product_id'), 'price_entries', ['store_product_id'], unique=False, if_not_exists=True)
+    op.create_index('ix_price_entries_store_product_is_current', 'price_entries', ['store_product_id', 'is_current'], unique=False, if_not_exists=True)
     op.create_table('item_matches',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -214,11 +218,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('plan_id', 'list_item_id', 'store_id', name='uq_item_matches_plan_item_store')
     )
-    op.create_index(op.f('ix_item_matches_chosen_price_entry_id'), 'item_matches', ['chosen_price_entry_id'], unique=False)
-    op.create_index(op.f('ix_item_matches_chosen_store_product_id'), 'item_matches', ['chosen_store_product_id'], unique=False)
-    op.create_index(op.f('ix_item_matches_list_item_id'), 'item_matches', ['list_item_id'], unique=False)
-    op.create_index(op.f('ix_item_matches_plan_id'), 'item_matches', ['plan_id'], unique=False)
-    op.create_index(op.f('ix_item_matches_store_id'), 'item_matches', ['store_id'], unique=False)
+    op.create_index(op.f('ix_item_matches_chosen_price_entry_id'), 'item_matches', ['chosen_price_entry_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_item_matches_chosen_store_product_id'), 'item_matches', ['chosen_store_product_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_item_matches_list_item_id'), 'item_matches', ['list_item_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_item_matches_plan_id'), 'item_matches', ['plan_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_item_matches_store_id'), 'item_matches', ['store_id'], unique=False, if_not_exists=True)
     op.create_table('plan_items',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -238,10 +242,10 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['store_product_id'], ['store_products.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_plan_items_list_item_id'), 'plan_items', ['list_item_id'], unique=False)
-    op.create_index(op.f('ix_plan_items_plan_store_visit_id'), 'plan_items', ['plan_store_visit_id'], unique=False)
-    op.create_index(op.f('ix_plan_items_price_entry_id'), 'plan_items', ['price_entry_id'], unique=False)
-    op.create_index(op.f('ix_plan_items_store_product_id'), 'plan_items', ['store_product_id'], unique=False)
+    op.create_index(op.f('ix_plan_items_list_item_id'), 'plan_items', ['list_item_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_plan_items_plan_store_visit_id'), 'plan_items', ['plan_store_visit_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_plan_items_price_entry_id'), 'plan_items', ['price_entry_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_plan_items_store_product_id'), 'plan_items', ['store_product_id'], unique=False, if_not_exists=True)
     op.create_table('item_match_candidates',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -258,66 +262,56 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('item_match_id', 'rank', name='uq_item_match_candidates_match_rank')
     )
-    op.create_index(op.f('ix_item_match_candidates_item_match_id'), 'item_match_candidates', ['item_match_id'], unique=False)
-    op.create_index(op.f('ix_item_match_candidates_price_entry_id'), 'item_match_candidates', ['price_entry_id'], unique=False)
-    op.create_index(op.f('ix_item_match_candidates_store_product_id'), 'item_match_candidates', ['store_product_id'], unique=False)
-    op.drop_table('spatial_ref_sys')
+    op.create_index(op.f('ix_item_match_candidates_item_match_id'), 'item_match_candidates', ['item_match_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_item_match_candidates_price_entry_id'), 'item_match_candidates', ['price_entry_id'], unique=False, if_not_exists=True)
+    op.create_index(op.f('ix_item_match_candidates_store_product_id'), 'item_match_candidates', ['store_product_id'], unique=False, if_not_exists=True)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
 # ### commands auto generated by Alembic - please adjust! ###
-    op.create_table('spatial_ref_sys',
-    sa.Column('srid', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('auth_name', sa.VARCHAR(length=256), autoincrement=False, nullable=True),
-    sa.Column('auth_srid', sa.INTEGER(), autoincrement=False, nullable=True),
-    sa.Column('srtext', sa.VARCHAR(length=2048), autoincrement=False, nullable=True),
-    sa.Column('proj4text', sa.VARCHAR(length=2048), autoincrement=False, nullable=True),
-    sa.CheckConstraint('srid > 0 AND srid <= 998999', name=op.f('spatial_ref_sys_srid_check')),
-    sa.PrimaryKeyConstraint('srid', name=op.f('spatial_ref_sys_pkey'))
-    )
-    op.drop_index(op.f('ix_item_match_candidates_store_product_id'), table_name='item_match_candidates')
-    op.drop_index(op.f('ix_item_match_candidates_price_entry_id'), table_name='item_match_candidates')
-    op.drop_index(op.f('ix_item_match_candidates_item_match_id'), table_name='item_match_candidates')
+    op.drop_index(op.f('ix_item_match_candidates_store_product_id'), table_name='item_match_candidates', if_exists=True)
+    op.drop_index(op.f('ix_item_match_candidates_price_entry_id'), table_name='item_match_candidates', if_exists=True)
+    op.drop_index(op.f('ix_item_match_candidates_item_match_id'), table_name='item_match_candidates', if_exists=True)
     op.drop_table('item_match_candidates')
-    op.drop_index(op.f('ix_plan_items_store_product_id'), table_name='plan_items')
-    op.drop_index(op.f('ix_plan_items_price_entry_id'), table_name='plan_items')
-    op.drop_index(op.f('ix_plan_items_plan_store_visit_id'), table_name='plan_items')
-    op.drop_index(op.f('ix_plan_items_list_item_id'), table_name='plan_items')
+    op.drop_index(op.f('ix_plan_items_store_product_id'), table_name='plan_items', if_exists=True)
+    op.drop_index(op.f('ix_plan_items_price_entry_id'), table_name='plan_items', if_exists=True)
+    op.drop_index(op.f('ix_plan_items_plan_store_visit_id'), table_name='plan_items', if_exists=True)
+    op.drop_index(op.f('ix_plan_items_list_item_id'), table_name='plan_items', if_exists=True)
     op.drop_table('plan_items')
-    op.drop_index(op.f('ix_item_matches_store_id'), table_name='item_matches')
-    op.drop_index(op.f('ix_item_matches_plan_id'), table_name='item_matches')
-    op.drop_index(op.f('ix_item_matches_list_item_id'), table_name='item_matches')
-    op.drop_index(op.f('ix_item_matches_chosen_store_product_id'), table_name='item_matches')
-    op.drop_index(op.f('ix_item_matches_chosen_price_entry_id'), table_name='item_matches')
+    op.drop_index(op.f('ix_item_matches_store_id'), table_name='item_matches', if_exists=True)
+    op.drop_index(op.f('ix_item_matches_plan_id'), table_name='item_matches', if_exists=True)
+    op.drop_index(op.f('ix_item_matches_list_item_id'), table_name='item_matches', if_exists=True)
+    op.drop_index(op.f('ix_item_matches_chosen_store_product_id'), table_name='item_matches', if_exists=True)
+    op.drop_index(op.f('ix_item_matches_chosen_price_entry_id'), table_name='item_matches', if_exists=True)
     op.drop_table('item_matches')
-    op.drop_index('ix_price_entries_store_product_is_current', table_name='price_entries')
-    op.drop_index(op.f('ix_price_entries_store_product_id'), table_name='price_entries')
-    op.drop_index('ix_price_entries_store_product_fetched_at', table_name='price_entries')
+    op.drop_index('ix_price_entries_store_product_is_current', table_name='price_entries', if_exists=True)
+    op.drop_index(op.f('ix_price_entries_store_product_id'), table_name='price_entries', if_exists=True)
+    op.drop_index('ix_price_entries_store_product_fetched_at', table_name='price_entries', if_exists=True)
     op.drop_table('price_entries')
-    op.drop_index(op.f('ix_store_products_store_id'), table_name='store_products')
-    op.drop_index(op.f('ix_store_products_product_id'), table_name='store_products')
+    op.drop_index(op.f('ix_store_products_store_id'), table_name='store_products', if_exists=True)
+    op.drop_index(op.f('ix_store_products_product_id'), table_name='store_products', if_exists=True)
     op.drop_table('store_products')
-    op.drop_index(op.f('ix_plan_store_visits_store_id'), table_name='plan_store_visits')
-    op.drop_index(op.f('ix_plan_store_visits_plan_id'), table_name='plan_store_visits')
+    op.drop_index(op.f('ix_plan_store_visits_store_id'), table_name='plan_store_visits', if_exists=True)
+    op.drop_index(op.f('ix_plan_store_visits_plan_id'), table_name='plan_store_visits', if_exists=True)
     op.drop_table('plan_store_visits')
-    op.drop_index(op.f('ix_plan_selected_stores_store_id'), table_name='plan_selected_stores')
-    op.drop_index(op.f('ix_plan_selected_stores_plan_id'), table_name='plan_selected_stores')
+    op.drop_index(op.f('ix_plan_selected_stores_store_id'), table_name='plan_selected_stores', if_exists=True)
+    op.drop_index(op.f('ix_plan_selected_stores_plan_id'), table_name='plan_selected_stores', if_exists=True)
     op.drop_table('plan_selected_stores')
-    op.drop_index(op.f('ix_jobs_task_id'), table_name='jobs')
-    op.drop_index(op.f('ix_jobs_plan_id'), table_name='jobs')
+    op.drop_index(op.f('ix_jobs_task_id'), table_name='jobs', if_exists=True)
+    op.drop_index(op.f('ix_jobs_plan_id'), table_name='jobs', if_exists=True)
     op.drop_table('jobs')
-    op.drop_index(op.f('ix_stores_chain_id'), table_name='stores')
-    op.drop_index('idx_stores_geography', table_name='stores', postgresql_using='gist')
+    op.drop_index(op.f('ix_stores_chain_id'), table_name='stores', if_exists=True)
+    op.drop_index('idx_stores_geography', table_name='stores', postgresql_using='gist', if_exists=True)
     op.drop_table('stores')
-    op.drop_index(op.f('ix_route_plans_list_id'), table_name='route_plans')
-    op.drop_index(op.f('ix_route_plans_client_token'), table_name='route_plans')
+    op.drop_index(op.f('ix_route_plans_list_id'), table_name='route_plans', if_exists=True)
+    op.drop_index(op.f('ix_route_plans_client_token'), table_name='route_plans', if_exists=True)
     op.drop_table('route_plans')
-    op.drop_index('ix_list_items_list_id_position', table_name='list_items')
-    op.drop_index(op.f('ix_list_items_list_id'), table_name='list_items')
+    op.drop_index('ix_list_items_list_id_position', table_name='list_items', if_exists=True)
+    op.drop_index(op.f('ix_list_items_list_id'), table_name='list_items', if_exists=True)
     op.drop_table('list_items')
     op.drop_table('store_chains')
-    op.drop_index(op.f('ix_shopping_lists_client_id'), table_name='shopping_lists')
+    op.drop_index(op.f('ix_shopping_lists_client_id'), table_name='shopping_lists', if_exists=True)
     op.drop_table('shopping_lists')
     op.drop_table('products')
     # ### end Alembic commands ###
