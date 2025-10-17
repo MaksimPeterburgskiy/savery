@@ -9,3 +9,5 @@ psycopg[binary]
 debugpy
 pint
 alembic
+pgvector
+geoalchemy2
