@@ -9,3 +9,4 @@ psycopg[binary]
 debugpy
 pint
 alembic
+scrapy
