@@ -52,3 +52,4 @@ Thumbs.db
 # html files used for analysing scraped data
 scrapers/store_page.html
 scrapers/test.html
+scrapers/multiple_stores_in_city.html
