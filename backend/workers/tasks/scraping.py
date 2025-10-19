@@ -61,19 +61,16 @@ def scrape_hannaford() -> None:
 
             #scrape each city page for stores
             city_list = page.locator("[class=Directory-listLinks]")
-            print(city_list)
             count = city_list.count()
             cities = city_list.locator("li a")
             
             count = cities.count()
-            print(count)
             
             for i in range(count):
                 page.goto(f"https://stores.hannaford.com/{hannaford_state.lower()}")
 
                 print(f"Scraping city {i+1} of {count} in {hannaford_state}")
                 city = cities.nth(i)
-                print(city)
                 
                 city_name = city.inner_text().strip()
                 city_url = city.get_attribute("href")
@@ -90,7 +87,6 @@ def scrape_hannaford() -> None:
                         stores.append(store_data)
                     
                 else:
-                    print(f"https://stores.hannaford.com/{city_url}")
                     store = get_store_data_hannaford(page, f"https://stores.hannaford.com/{city_url}", city_name, hannaford_state)
 
                     stores.append(store)
@@ -114,7 +110,6 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     longitude = lat_long_json.get("longitude")
     tf = timezonefinder.TimezoneFinder()
     timezone = tf.timezone_at(lng=longitude, lat=latitude)
-    print(timezone)
     
     #find the hours and store them in a json object
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
@@ -154,7 +149,6 @@ def scrape_price_chopper() -> None:
 
             #get all cities in the state
             cities_list_location = page.locator("[class=locations-list-container]")
-            print(cities_list_location)
             map_list= cities_list_location.locator("[class=map-list ]")
             print(map_list)
             cities = map_list.locator("li")
