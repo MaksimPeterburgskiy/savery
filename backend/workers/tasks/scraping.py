@@ -1,7 +1,8 @@
 """Store data ingestion and pricing tasks."""
 
 from __future__ import annotations
-
+import pytz
+import timezonefinder
 from typing import Any
 import json
 from celery import shared_task
@@ -11,7 +12,7 @@ from celery import shared_task
 from playwright.sync_api import sync_playwright
 
 hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
-
+price_chopper_states = ["NY", "VT", "MA", "CT", "PA", "NH"]
 class Store:
     id: str
     name: str
@@ -26,7 +27,7 @@ class Store:
     timezone: str
     hours : json
 
-    def __init__(self, id: str, name: str, address_line_1: str, address_line_2: str, phone: str, city: str, region: str, zip_code: str,
+    def __init__(self, id: str, name: str, address_line_1: str, address_line_2: str, phone: str, country_code: str, city: str, region: str, zip_code: str,
                  latitude: float, longitude: float, timezone: str, hours: json) -> None:
         self.id = id
         self.name = name
@@ -35,6 +36,7 @@ class Store:
         self.phone = phone
         self.city = city
         self.region = region
+        self.country_code = country_code
         self.zip_code = zip_code
         self.latitude = latitude
         self.longitude = longitude
@@ -43,15 +45,13 @@ class Store:
 
 
     def __str__(self) -> str:
-        return f"Store(id = {self.id}, name = {self.name}, address_line_1 = {self.address_line_1}, address_line_2 = {self.address_line_2}, phone = {self.phone}, city = {self.city}, region = {self.region}, zip_code = {self.zip_code}, latitude = {self.latitude}, longitude = {self.longitude}, timezone = {self.timezone}, hours = {self.hours})"
+        return f"Store(id = {self.id}, name = {self.name}, address_line_1 = {self.address_line_1}, address_line_2 = {self.address_line_2}, phone = {self.phone}, country = {self.country_code}, city = {self.city}, region = {self.region}, zip_code = {self.zip_code}, latitude = {self.latitude}, longitude = {self.longitude}, timezone = {self.timezone}, hours = {self.hours})"
 
 @shared_task(name="workers.scraping.scrape_hannaford_stores")
 def scrape_hannaford() -> None:
 
     stores = []
-    # Use the synchronous Playwright API. No asyncio event loop required.
     with sync_playwright() as p:
-        # launch the Firefox browser 
         browser = p.firefox.launch(headless=True)
         context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
         page = context.new_page()
@@ -81,7 +81,6 @@ def scrape_hannaford() -> None:
                 city_name = city.inner_text().strip()
                 city_url = city.get_attribute("href")
                 if not city_url.endswith(tuple(str(n) for n in range(10))):
-                    print(f"Multiple stores in {city_name}, skipping for now.")
                     page.goto(f"https://stores.hannaford.com/{city_url}")
                     stores_in_city = page.locator("[class=Directory-listTeaser]")
                     store_count = stores_in_city.count()
@@ -90,7 +89,6 @@ def scrape_hannaford() -> None:
                         store = stores_in_city.nth(i)
                         store_url = store.locator("[class=Teaser-titleLink]").get_attribute("href").lstrip(".")
                         full_store_url = f"https://stores.hannaford.com{store_url}"
-                        print(full_store_url)
                         store_data = get_store_data_hannaford(page, full_store_url, city_name, hannaford_state)
                         stores.append(store_data)
                     
@@ -99,10 +97,6 @@ def scrape_hannaford() -> None:
                     store = get_store_data_hannaford(page, f"https://stores.hannaford.com/{city_url}", city_name, hannaford_state)
 
                     stores.append(store)
-                    
-            
-        
-        
         
         context.close()
         browser.close()
@@ -121,7 +115,9 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     lat_long_json = json.loads(page.locator("[class=js-map-data]").inner_text().strip())
     latitude = lat_long_json.get("latitude")
     longitude = lat_long_json.get("longitude")
-    
+    tf = timezonefinder.TimezoneFinder()
+    timezone = tf.timezone_at(lng=longitude, lat=latitude)
+    print(timezone)
     
     #find the hours and store them in a json object
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
@@ -137,13 +133,44 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
         zip_code=zip_code,
         latitude=latitude,
         longitude=longitude,
-        timezone="",
-        hours = hours
+        timezone=timezone,
+        hours = hours,
+        country_code="US"
     )
     print(store)
     print("-----")
     return store
 
 
+
+@shared_task(name="workers.scraping.scrape_price_chopper")
+def scrape_price_chopper() -> None:
+    with sync_playwright() as p:
+        browser = p.firefox.launch(headless=True)
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+        page = context.new_page()
+
+        page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
+
+        for price_chopper_state in price_chopper_states:
+            page.goto(f"https://www.pricechopper.com/stores/{price_chopper_state.lower()}")
+
+            #get all cities in the state
+            cities_list_location = page.locator("[class=locations-list-container]")
+            print(cities_list_location)
+            map_list= cities_list_location.locator("[class=map-list ]")
+            print(map_list)
+            cities = map_list.locator("li")
+            count = cities.count()
+            print(count)
+            for i in range(count):
+                city = map_list.nth(i)
+                city_url = city.locator("a").get_attribute("href")
+                page.goto(city_url)
+                #get all stores in the city
+            break
+
+
 if __name__ == "__main__":
     scrape_hannaford()
+    scrape_price_chopper()
