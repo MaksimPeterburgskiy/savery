@@ -1,13 +1,10 @@
 """Store data ingestion and pricing tasks."""
 
 from __future__ import annotations
-import pytz
 import timezonefinder
 from typing import Any
 import json
 from celery import shared_task
-
-
 
 from playwright.sync_api import sync_playwright
 
