@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 import timezonefinder
-from typing import Any
 import json
 from celery import shared_task
 
@@ -204,6 +203,6 @@ def scrape_hannaford_items() -> None:
 
 
 if __name__ == "__main__":
-  #  scrape_hannaford()
+    scrape_hannaford()
   #  scrape_price_chopper()
-    scrape_hannaford_items()
+ #   scrape_hannaford_items()

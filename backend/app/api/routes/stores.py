@@ -10,7 +10,6 @@ from sqlmodel import Session
 from backend.app.models import StoreListResponse, StoreSummary
 from backend.app.dependencies import get_db
 from haversine import haversine
-#from backend.app.models import StoreListResponse, StoreSummary
 
 router = APIRouter()
 

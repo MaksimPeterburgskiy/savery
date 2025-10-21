@@ -10,7 +10,6 @@ debugpy
 pint
 alembic
 scrapy
-json
 timezonefinder
 playwright
 haversine
