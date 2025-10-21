@@ -75,13 +75,13 @@ class ListItem(Base, table=True):
     )
     list: ShoppingList | None = Relationship(back_populates="list_items")
 
-    raw_text_qty: str
-    raw_text_item: str
-    item_name: str
-    qty_value: float
-    qty_unit: str
-    norm_qty_value: float
-    norm_qty_unit: str
+    raw_text_qty: str | None = Field(default=None)
+    raw_text_item: str | None = Field(default=None)
+    item_name: str | None = Field(default=None)
+    qty_value: float | None = Field(default=None)
+    qty_unit: str | None = Field(default=None)
+    norm_qty_value: float | None = Field(default=None)
+    norm_qty_unit: str | None = Field(default=None)
     position: int = Field(nullable=False)
 
     item_matches: List["ItemMatch"] = Relationship(back_populates="list_item")
