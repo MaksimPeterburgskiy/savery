@@ -114,6 +114,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Apply database migrations
+        run: |
+          python -c "from backend.app.migrations import upgrade_to_head; upgrade_to_head()"
+
       - name: Run tests
         run: pytest backend/tests
 
