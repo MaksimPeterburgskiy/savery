@@ -44,6 +44,14 @@ class Store:
     def __str__(self) -> str:
         return f"Store(id = {self.id}, name = {self.name}, address_line_1 = {self.address_line_1}, address_line_2 = {self.address_line_2}, phone = {self.phone}, country = {self.country_code}, city = {self.city}, region = {self.region}, zip_code = {self.zip_code}, latitude = {self.latitude}, longitude = {self.longitude}, timezone = {self.timezone}, hours = {self.hours})"
 
+class StoreProduct:
+    brand = str
+    name = str
+    upc = str
+    
+
+
+
 @shared_task(name="workers.scraping.scrape_hannaford_stores")
 def scrape_hannaford() -> None:
 
@@ -162,6 +170,40 @@ def scrape_price_chopper() -> None:
             break
 
 
+@shared_task(name="workers.scraping.scrape_hannaford_items")
+def scrape_hannaford_items() -> None:
+    with sync_playwright() as p:
+        browser = p.firefox.launch(headless=True)
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+        page = context.new_page()
+
+        page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
+
+        # Navigate to Hannaford online shopping page
+        page.goto("https://www.hannaford.com/departments/")
+        #get all departments
+        department_container = page.locator(".dept-list.row")
+        departments = department_container.locator("a")
+        dept_count = departments.count()
+        print(f"Found {dept_count} departments.")
+        for i in range(dept_count):
+            page.goto("https://www.hannaford.com/departments/")
+
+            department = departments.nth(i)
+            dept_name = department.locator(".thumb-text").inner_text().strip()
+            dept_url = department.get_attribute("href")
+            print(f"Scraping department {i+1} of {dept_count}: {dept_name}")
+            print("URL: ", f"https://www.hannaford.com{dept_url}")
+            page.goto(f"https://www.hannaford.com{dept_url}")
+
+            #find every sub-department
+            sub_dept_container = page.locator("")
+
+        context.close()
+        browser.close()
+
+
 if __name__ == "__main__":
-    scrape_hannaford()
-    scrape_price_chopper()
+  #  scrape_hannaford()
+  #  scrape_price_chopper()
+    scrape_hannaford_items()
