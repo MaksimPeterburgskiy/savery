@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     task_status_base_url: Optional[str] = None
 
-    verify_schema_on_startup: bool = False
+    verify_schema_on_startup: bool = True
 
 
 @lru_cache

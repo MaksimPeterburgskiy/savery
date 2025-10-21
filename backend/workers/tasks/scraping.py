@@ -47,7 +47,8 @@ class StoreProduct:
     brand = str
     name = str
     upc = str
-    
+    weight = str
+    price = float
 
 
 
@@ -171,7 +172,9 @@ def scrape_price_chopper() -> None:
 
 @shared_task(name="workers.scraping.scrape_hannaford_items")
 def scrape_hannaford_items() -> None:
+    items = []
     with sync_playwright() as p:
+        print("Scraping Hannaford items...")
         browser = p.firefox.launch(headless=True)
         context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
         page = context.new_page()
@@ -180,29 +183,61 @@ def scrape_hannaford_items() -> None:
 
         # Navigate to Hannaford online shopping page
         page.goto("https://www.hannaford.com/departments/")
-        #get all departments
-        department_container = page.locator(".dept-list.row")
-        departments = department_container.locator("a")
-        dept_count = departments.count()
-        print(f"Found {dept_count} departments.")
-        for i in range(dept_count):
-            page.goto("https://www.hannaford.com/departments/")
-
-            department = departments.nth(i)
-            dept_name = department.locator(".thumb-text").inner_text().strip()
-            dept_url = department.get_attribute("href")
-            print(f"Scraping department {i+1} of {dept_count}: {dept_name}")
-            print("URL: ", f"https://www.hannaford.com{dept_url}")
-            page.goto(f"https://www.hannaford.com{dept_url}")
-
-            #find every sub-department
-            sub_dept_container = page.locator("")
-
+        #get all departments, these are located in divs with class main-nav-menu-level-3
+        departments = page.locator("[class=main-nav-menu-level-3]")
+        
+        for department_index in range(departments.count()):
+            #go to each departments subdepartments
+            department = departments.nth(department_index)
+            subdepartments = department.locator("li")
+            print(f"Scraping department {department_index} of {departments.count()}")
+            for subdepartment_index in range(1, subdepartments.count()):
+                #go to each subdepartments and get items
+                
+                subdepartment = subdepartments.nth(subdepartment_index)
+                subdepartment_url = subdepartment.locator("a").get_attribute("href")
+                print(f"  Scraping subdepartment {subdepartment_index+1} of {subdepartments.count()}")
+                print("URL: ", f"https://www.hannaford.com{subdepartment_url}")
+                page.goto(f"https://www.hannaford.com{subdepartment_url}")
+                
+                #now get all items on the page
+                #press the load more button until it is no longer available
+                while True:
+                    try:
+                        load_more_button = page.locator("#see-more-btn").nth(0)
+                        if load_more_button.is_visible():
+                            print("Clicking load more button")
+                            load_more_button.click()
+                            page.wait_for_timeout(2000)  # wait for 2 seconds for items to load
+                        else:
+                            print("No more load more button visible")
+                            break
+                    except:
+                        break
+                 
+                 #items are stored 
+                items = page.locator(".plp_thumb_wrap.product-impressions")
+                item_count = items.count()
+                print(f"Found {item_count} items in subdepartment {subdepartment_index+1} of {subdepartments.count()}")
+                for item_index in range(item_count):
+                    item = items.nth(item_index)
+                    item_name=item.get_attribute("data-name")
+                    print("  Item Name: ", item_name)
         context.close()
         browser.close()
 
 
+
+def get_item_data_hannaford(item) -> StoreProduct:
+    name = item.get_attribute("data-name")
+    price = item.get_attribute("data-price")
+    weight = item.get_attribute("data-variant")
+    brand = item.get_attribute("data-brand")
+    #scrape item data here
+    pass
+
+
 if __name__ == "__main__":
-    scrape_hannaford()
+  #  scrape_hannaford()
   #  scrape_price_chopper()
- #   scrape_hannaford_items()
+   scrape_hannaford_items()
