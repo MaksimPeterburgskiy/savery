@@ -1,11 +1,10 @@
 """Domain and API models backed by SQLModel."""
 
-from __future__ import annotations
-
 from datetime import datetime, timezone
 from enum import Enum
 import uuid
 from uuid import UUID
+from typing import List
 
 from geoalchemy2 import Geography
 from pgvector.sqlalchemy import Vector
@@ -45,22 +44,27 @@ class MatchStatus(str, Enum):
 
 
 # Base class -------------------------------------------------------------------
+def utcnow() -> datetime:
+    """Return current UTC time for timestamp defaults."""
+    return datetime.now(timezone.utc)
+
+
 class Base(SQLModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True, nullable=False)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at: datetime = Field(default_factory=utcnow, nullable=False)
+    updated_at: datetime = Field(default_factory=utcnow,nullable=False, sa_column_kwargs={"onupdate": utcnow})
 
 
 # Shopping Lists ---------------------------------------------------------------
 class ShoppingList(Base, table=True):
     __tablename__ = "shopping_lists"
 
-    client_id: str | None = Field(default=None, unique=True, index=True)
+    client_id: str | None = Field(default=None, index=True)
     title: str | None = Field(default=None)
 
-    list_items: list[ListItem] = Relationship(back_populates="list")
-    route_plans: list[RoutePlan] = Relationship(back_populates="list")
+    list_items: List["ListItem"] = Relationship(back_populates="list")
+    route_plans: List["RoutePlan"] = Relationship(back_populates="list")
 
 
 class ListItem(Base, table=True):
@@ -80,8 +84,8 @@ class ListItem(Base, table=True):
     norm_qty_unit: str
     position: int = Field(nullable=False)
 
-    item_matches: list[ItemMatch] = Relationship(back_populates="list_item")
-    plan_items: list[PlanItem] = Relationship(back_populates="list_item")
+    item_matches: List["ItemMatch"] = Relationship(back_populates="list_item")
+    plan_items: List["PlanItem"] = Relationship(back_populates="list_item")
 
 
 # Store & Product Catalog ------------------------------------------------------
@@ -92,7 +96,7 @@ class StoreChain(Base, table=True):
 
     name: str
 
-    stores: list[Store] = Relationship(back_populates="chain")
+    stores: List["Store"] = Relationship(back_populates="chain")
 
 
 class Store(Base, table=True):
@@ -122,10 +126,10 @@ class Store(Base, table=True):
         sa_column=Column(Geography(geometry_type="POINT", srid=4326), nullable=True),
     )
 
-    store_products: list[StoreProduct] = Relationship(back_populates="store")
-    plan_selected: list[PlanSelectedStore] = Relationship(back_populates="store")
-    store_visits: list[PlanStoreVisit] = Relationship(back_populates="store")
-    item_matches: list[ItemMatch] = Relationship(back_populates="store")
+    store_products: List["StoreProduct"] = Relationship(back_populates="store")
+    plan_selected: List["PlanSelectedStore"] = Relationship(back_populates="store")
+    store_visits: List["PlanStoreVisit"] = Relationship(back_populates="store")
+    item_matches: List["ItemMatch"] = Relationship(back_populates="store")
 
 
 class Product(Base, table=True):
@@ -142,7 +146,7 @@ class Product(Base, table=True):
     embedding: list[float] | None = Field(default=None,sa_column=Column(Vector(384)))
     embedding_dim: int | None = Field(default=None)
 
-    store_products: list[StoreProduct] = Relationship(back_populates="product")
+    store_products: List["StoreProduct"] = Relationship(back_populates="product")
 
 
 class StoreProduct(Base, table=True):
@@ -176,15 +180,15 @@ class StoreProduct(Base, table=True):
     product_url: str | None = Field(default=None)
     is_active: bool = Field(default=True, nullable=False)
 
-    price_entries: list[PriceEntry] = Relationship(back_populates="store_product")
-    plan_items: list[PlanItem] = Relationship(back_populates="store_product")
-    chosen_for_matches: list[ItemMatch] = Relationship(
+    price_entries: List["PriceEntry"] = Relationship(back_populates="store_product")
+    plan_items: List["PlanItem"] = Relationship(back_populates="store_product")
+    chosen_for_matches: List["ItemMatch"] = Relationship(
         back_populates="chosen_store_product",
         sa_relationship_kwargs={
             "foreign_keys": "ItemMatch.chosen_store_product_id"
         },
     )
-    candidate_rows: list[ItemMatchCandidate] = Relationship(
+    candidate_rows: List["ItemMatchCandidate"] = Relationship(
         back_populates="store_product"
     )
 
@@ -207,14 +211,14 @@ class PriceEntry(Base, table=True):
     valid_to: datetime | None = Field(default=None)
     is_current: bool = Field(default=True, nullable=False)
 
-    plan_items: list[PlanItem] = Relationship(back_populates="price_entry")
-    chosen_for_matches: list[ItemMatch] = Relationship(
+    plan_items: List["PlanItem"] = Relationship(back_populates="price_entry")
+    chosen_for_matches: List["ItemMatch"] = Relationship(
         back_populates="chosen_price_entry",
         sa_relationship_kwargs={
             "foreign_keys": "ItemMatch.chosen_price_entry_id"
         },
     )
-    candidate_refs: list[ItemMatchCandidate] = Relationship(
+    candidate_refs: List["ItemMatchCandidate"] = Relationship(
         back_populates="price_entry"
     )
 
@@ -245,10 +249,10 @@ class RoutePlan(Base, table=True):
     total_distance_m: int | None = Field(default=None)
     total_travel_sec: int | None = Field(default=None)
 
-    selected_stores: list[PlanSelectedStore] = Relationship(back_populates="plan")
-    item_matches: list[ItemMatch] = Relationship(back_populates="plan")
-    store_visits: list[PlanStoreVisit] = Relationship(back_populates="plan")
-    jobs: list[Job] = Relationship(back_populates="plan")
+    selected_stores: List["PlanSelectedStore"] = Relationship(back_populates="plan")
+    item_matches: List["ItemMatch"] = Relationship(back_populates="plan")
+    store_visits: List["PlanStoreVisit"] = Relationship(back_populates="plan")
+    jobs: List["Job"] = Relationship(back_populates="plan")
 
 
 class PlanSelectedStore(Base, table=True):
@@ -317,7 +321,7 @@ class ItemMatch(Base, table=True):
     notes: str | None = Field(default=None)
     updated_by_user: bool = Field(default=False, nullable=False)
 
-    candidates: list[ItemMatchCandidate] = Relationship(back_populates="item_match")
+    candidates: List["ItemMatchCandidate"] = Relationship(back_populates="item_match")
 
 
 class ItemMatchCandidate(Base, table=True):
@@ -378,7 +382,7 @@ class PlanStoreVisit(Base, table=True):
         default=None, sa_column=Column(Numeric(12, 2), nullable=True)
     )
 
-    plan_items: list[PlanItem] = Relationship(back_populates="plan_store_visit")
+    plan_items: List["PlanItem"] = Relationship(back_populates="plan_store_visit")
 
 
 class PlanItem(Base, table=True):

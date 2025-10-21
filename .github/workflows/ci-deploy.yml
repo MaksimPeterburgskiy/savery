@@ -13,11 +13,45 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository }}
+  SAVERY_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/savery
+  SAVERY_CELERY_BROKER_URL: amqp://guest:guest@localhost//
+  SAVERY_CELERY_RESULT_BACKEND: rpc://
 
 jobs:
   test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: savery
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --name ci-postgres
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      rabbitmq:
+        image: rabbitmq:3.13-management
+        ports:
+          - 5672:5672
+        options: >-
+          --name ci-rabbitmq
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      dragonfly:
+        image: docker.dragonflydb.io/dragonflydb/dragonfly
+        ports:
+          - 6379:6379
+        options: >-
+          --name ci-dragonfly
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,10 +61,62 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install database extensions
+        run: |
+          docker exec --user root ci-postgres bash -c "apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+              postgresql-16-postgis-3 \
+              postgresql-16-postgis-3-scripts \
+              postgresql-16-pgvector \
+              postgis \
+            && rm -rf /var/lib/apt/lists/*"
+          docker exec ci-postgres psql -U postgres -d savery -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          docker exec ci-postgres psql -U postgres -d savery -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Wait for dependent services
+        run: |
+          python - <<'PY'
+          import socket
+          import time
+
+          targets = [
+              ("PostgreSQL", "localhost", 5432),
+              ("RabbitMQ", "localhost", 5672),
+              ("Dragonfly", "localhost", 6379),
+          ]
+
+          deadline = time.time() + 90
+          pending = set(range(len(targets)))
+
+          while pending and time.time() < deadline:
+              for idx in list(pending):
+                  label, host, port = targets[idx]
+                  sock = socket.socket()
+                  sock.settimeout(1)
+                  try:
+                      sock.connect((host, port))
+                  except OSError:
+                      pass
+                  else:
+                      pending.remove(idx)
+                  finally:
+                      sock.close()
+              if pending:
+                  time.sleep(2)
+
+          if pending:
+              missing = ", ".join(targets[i][0] for i in pending)
+              raise SystemExit(f"Services did not become ready: {missing}")
+          PY
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
+
+      - name: Apply database migrations
+        run: |
+          python -c "from backend.app.migrations import upgrade_to_head; upgrade_to_head()"
 
       - name: Run tests
         run: pytest backend/tests
