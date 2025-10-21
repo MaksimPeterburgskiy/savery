@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Instructions
+Always search for the most up-to-date documentation and resources instead of relying solely on your own knowledge using context7 or alternatively web search.
+
+
 ## Repo Map
 - `frontend/` — Expo app.
   - `savery/app/` — screens and routing (Expo Router).
@@ -18,7 +22,7 @@
 
 ## Technology
 - Frontend: Expo Router, `reactnativereusables`, TypeScript, Tailwind 
-- Backend: FastAPI, Celery, RabbitMQ, PostgreSQL + PostGIS + pgvector, Pint.
+- Backend: FastAPI, SQLModel, Celery, RabbitMQ, PostgreSQL + PostGIS + pgvector, Pint.
 - DevOps: Docker Compose–driven local stack.
 
 ## Where to Add Things

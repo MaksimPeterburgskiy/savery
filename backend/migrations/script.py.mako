@@ -1,17 +1,19 @@
-"""Alembic revision script template."""
+"""${message if message else "Alembic revision script."}"""
 
 from alembic import op
 import sqlalchemy as sa
+${imports if imports else ""}
 
 
-revision = ${repr(revision)}
+revision = ${repr(up_revision)}
 down_revision = ${repr(down_revision)}
 branch_labels = ${repr(branch_labels)}
 depends_on = ${repr(depends_on)}
 
+
 def upgrade() -> None:
-    pass
+${upgrades if upgrades else "    pass"}
 
 
 def downgrade() -> None:
-    pass
+${downgrades if downgrades else "    pass"}
