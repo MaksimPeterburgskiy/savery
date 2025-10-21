@@ -8,7 +8,6 @@ from celery import chain
 from celery.result import AsyncResult
 
 from backend.app.config import settings
-from backend.workers.celery_app import celery_app
 
 MATCHING_TASK = settings.celery_matching_task
 PRICING_TASK = settings.celery_pricing_task
@@ -16,6 +15,7 @@ OPTIMIZATION_TASK = settings.celery_route_task
 
 
 def _build_workflow(payload: dict[str, Any]):
+    from backend.workers.celery_app import celery_app
     """Return the Celery canvas representing the optimization pipeline."""
 
     match_signature = celery_app.signature(MATCHING_TASK, kwargs={"payload": payload})
@@ -37,6 +37,7 @@ def enqueue_optimization_job(payload: Any) -> str:
 
 
 def get_task_status(task_id: str) -> dict[str, Any]:
+    from backend.workers.celery_app import celery_app
     """Return basic status information for a Celery task."""
 
     async_result = AsyncResult(task_id, app=celery_app)
