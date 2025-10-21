@@ -13,10 +13,9 @@ import {
 import { Ionicons as IonIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox, XBox } from '@/components/ui/checkbox';
 import { CardStyle } from '@/lib/theme';
 
-// ---- Types ----
 export interface Item {
   id: string;
   name: string;
@@ -30,6 +29,21 @@ export interface Store {
   totalCost: number;
   items: Item[];
 }
+
+// Example Item Data
+const itemData: Item[] = [
+  { id: '1a', name: 'Bananas', price: 2.49 },
+  { id: '2a', name: 'Milk', price: 3.19 },
+  { id: '2b', name: 'Bread', price: 2.49 },
+  { id: '2c', name: 'Eggs', price: 5.59 },
+  { id: '3a', name: 'Almonds', price: 10.0 },
+  { id: '3b', name: 'Oat Milk', price: 5.5 },
+];
+const alternates: Item[] = [
+  { id: '4a', name: 'Alt 1', price: 3.99 },
+  { id: '4b', name: 'Alt 2', price: 4.29 },
+  { id: '4c', name: 'Alt 3', price: 2.99 },
+];
 
 // Example Store Data (dynamic integration from backend later)
 const storeData: Store[] = [
@@ -130,9 +144,68 @@ function ItemCard({ name, onDelete }: ItemCardProps) {
   );
 }
 
+const ItemMatchList: React.FC = () => {
+  const [items, setItems] = useState<Item[]>(itemData);
+  const renderItem: ListRenderItem<Item> = ({ item }) => <ItemMatchCard item={item} />;
+
+  return (
+    <FlatList
+      data={items}
+      keyExtractor={(item) => item.id}
+      renderItem={renderItem}
+      contentContainerStyle={CardStyle.container}
+    />
+  );
+};
+
+interface ItemMatchCardProps {
+  item: Item;
+}
+
+const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item }) => {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  return (
+    <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
+      <CardContent className="w-full flex-row items-start justify-between p-0">
+        <View className="flex-col items-start justify-between p-0">
+          <Text className="text-base text-[#000000ff]">{item.name}</Text>
+          <Text className="text-base text-[#000000ff]">${item.price.toFixed(2)}</Text>
+        </View>
+
+        <View className="flex-row items-end align-center gap-2 items-center justify-between p-0">
+          <Checkbox
+            style={CardStyle.checkContainer}
+            accessibilityLabel={`Include ${item.name}`}
+            checked={selectedIds.has(`${item.id}::include`)}
+            onCheckedChange={(v: boolean) => {
+              setSelectedIds(() => {
+            const next = new Set<string>();
+            if (v) next.add(`${item.id}::include`);
+            return next;
+              });
+            }}
+          />
+          <XBox
+            style={CardStyle.xContainer}
+            accessibilityLabel={`Exclude ${item.name}`}
+            checked={selectedIds.has(`${item.id}::exclude`)}
+            onCheckedChange={(v: boolean) => {
+              setSelectedIds(() => {
+            const next = new Set<string>();
+            if (v) next.add(`${item.id}::exclude`);
+            return next;
+              });
+            }}
+          />
+        </View>
+      </CardContent>
+    </Card>
+  );
+};
+
+// List of Items Grouped by store for the final list
 const StoreList: React.FC = () => {
   const [stores, setStores] = useState<Store[]>(storeData);
-
   const renderStore: ListRenderItem<Store> = ({ item }) => <StoreCard store={item} />;
 
   return (
@@ -168,8 +241,9 @@ const StoreCard: React.FC<StoreCardProps> = ({ store }) => {
             <Text style={CardStyle.itemName}>{item.name}</Text>
             <Text style={CardStyle.itemPrice}>${item.price.toFixed(2)}</Text>
           </View>
-          
-          <Checkbox style={CardStyle.checkContainer}
+
+          <Checkbox
+            style={CardStyle.checkContainer}
             accessibilityLabel={`Select ${item.name}`}
             checked={selectedIds.has(item.id)}
             onCheckedChange={(v: boolean) => {
@@ -196,4 +270,5 @@ export {
   CardTitle,
   ItemCard,
   StoreList,
+  ItemMatchList,
 };
