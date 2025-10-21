@@ -31,7 +31,7 @@ Enum match_status {
 // Lists, Items
 Table shopping_lists {
   id                uuid [pk, default: `gen_random_uuid()`]
-  client_id      text [unique] // short token to resume without auth, eventually will be user id
+  client_id      text [] // short token to resume without auth, eventually will be user id
   title             text
   created_at        timestamptz [default: `now()`]
   updated_at        timestamptz [default: `now()`]
