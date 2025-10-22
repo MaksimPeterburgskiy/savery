@@ -20,6 +20,7 @@ export interface Item {
   id: string;
   name: string;
   price: number;
+  alts: Item[];
 }
 
 export interface Store {
@@ -30,19 +31,19 @@ export interface Store {
   items: Item[];
 }
 
+const alternates: Item[] = [
+  { id: '4a', name: 'Alt 1', price: 3.99, alts: [] },
+  { id: '4b', name: 'Alt 2', price: 4.29, alts: [] },
+  { id: '4c', name: 'Alt 3', price: 2.99, alts: [] },
+];
 // Example Item Data
 const itemData: Item[] = [
-  { id: '1a', name: 'Bananas', price: 2.49 },
-  { id: '2a', name: 'Milk', price: 3.19 },
-  { id: '2b', name: 'Bread', price: 2.49 },
-  { id: '2c', name: 'Eggs', price: 5.59 },
-  { id: '3a', name: 'Almonds', price: 10.0 },
-  { id: '3b', name: 'Oat Milk', price: 5.5 },
-];
-const alternates: Item[] = [
-  { id: '4a', name: 'Alt 1', price: 3.99 },
-  { id: '4b', name: 'Alt 2', price: 4.29 },
-  { id: '4c', name: 'Alt 3', price: 2.99 },
+  { id: '1a', name: 'Bananas', price: 2.49, alts: alternates },
+  { id: '2a', name: 'Milk', price: 3.19, alts: alternates },
+  { id: '2b', name: 'Bread', price: 2.49, alts: alternates },
+  { id: '2c', name: 'Eggs', price: 5.59, alts: alternates },
+  { id: '3a', name: 'Almonds', price: 10.0, alts: alternates },
+  { id: '3b', name: 'Oat Milk', price: 5.5, alts: alternates },
 ];
 
 // Example Store Data (dynamic integration from backend later)
@@ -52,7 +53,7 @@ const storeData: Store[] = [
     name: 'Walmart',
     distance: '2.1mi',
     totalCost: 23.5,
-    items: [{ id: '1a', name: 'Bananas', price: 2.49 }],
+    items: [{ id: '1a', name: 'Bananas', price: 2.49, alts: [] }],
   },
   {
     id: '2',
@@ -60,9 +61,9 @@ const storeData: Store[] = [
     distance: '3.6mi',
     totalCost: 57.2,
     items: [
-      { id: '2a', name: 'Milk', price: 3.19 },
-      { id: '2b', name: 'Bread', price: 2.49 },
-      { id: '2c', name: 'Eggs', price: 5.59 },
+      { id: '2a', name: 'Milk', price: 3.19, alts: [] },
+      { id: '2b', name: 'Bread', price: 2.49, alts: [] },
+      { id: '2c', name: 'Eggs', price: 5.59, alts: [] },
     ],
   },
   {
@@ -71,8 +72,8 @@ const storeData: Store[] = [
     distance: '5.4mi',
     totalCost: 32.8,
     items: [
-      { id: '3a', name: 'Almonds', price: 10.0 },
-      { id: '3b', name: 'Oat Milk', price: 5.5 },
+      { id: '3a', name: 'Almonds', price: 10.0, alts: [] },
+      { id: '3b', name: 'Oat Milk', price: 5.5, alts: [] },
     ],
   },
 ];
@@ -144,9 +145,32 @@ function ItemCard({ name, onDelete }: ItemCardProps) {
   );
 }
 
-const ItemMatchList: React.FC = () => {
+type ItemMatchListProps = {
+  onAllSelected?: (allSelected: boolean) => void;
+};
+
+const ItemMatchList: React.FC<ItemMatchListProps> = ({ onAllSelected }) => {
   const [items, setItems] = useState<Item[]>(itemData);
-  const renderItem: ListRenderItem<Item> = ({ item }) => <ItemMatchCard item={item} />;
+  const [selections, setSelections] = useState<Record<string, 'include' | 'exclude' | undefined>>(
+    {}
+  );
+
+  // Notify the parent when all items are selected for inclusion
+  // To be used to enable the "confirm items" button on the itemMatch screemn
+  useEffect(() => {
+    const allSelected = items.length > 0 && items.every((it) => selections[it.id] === 'include');
+    onAllSelected?.(allSelected);
+  }, [selections, items, onAllSelected]);
+
+  const renderItem: ListRenderItem<Item> = ({ item }) => (
+    <ItemMatchCard
+      item={item}
+      selection={selections[item.id]}
+      onSelect={(sel) => {
+        setSelections((prev) => ({ ...prev, [item.id]: sel }));
+      }}
+    />
+  );
 
   return (
     <FlatList
@@ -160,10 +184,11 @@ const ItemMatchList: React.FC = () => {
 
 interface ItemMatchCardProps {
   item: Item;
+  selection?: 'include' | 'exclude' | undefined;
+  onSelect: (sel: 'include' | 'exclude' | undefined) => void;
 }
 
-const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item }) => {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item, selection, onSelect }) => {
   return (
     <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
       <CardContent className="w-full flex-row items-start justify-between p-0">
@@ -172,30 +197,18 @@ const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item }) => {
           <Text className="text-base text-[#000000ff]">${item.price.toFixed(2)}</Text>
         </View>
 
-        <View className="flex-row items-end align-center gap-2 items-center justify-between p-0">
+        <View className="align-center flex-row items-end items-center justify-between gap-2 p-0">
           <Checkbox
             style={CardStyle.checkContainer}
             accessibilityLabel={`Include ${item.name}`}
-            checked={selectedIds.has(`${item.id}::include`)}
-            onCheckedChange={(v: boolean) => {
-              setSelectedIds(() => {
-            const next = new Set<string>();
-            if (v) next.add(`${item.id}::include`);
-            return next;
-              });
-            }}
+            checked={selection === 'include'}
+            onCheckedChange={(v: boolean) => onSelect(v ? 'include' : undefined)}
           />
           <XBox
             style={CardStyle.xContainer}
             accessibilityLabel={`Exclude ${item.name}`}
-            checked={selectedIds.has(`${item.id}::exclude`)}
-            onCheckedChange={(v: boolean) => {
-              setSelectedIds(() => {
-            const next = new Set<string>();
-            if (v) next.add(`${item.id}::exclude`);
-            return next;
-              });
-            }}
+            checked={selection === 'exclude'}
+            onCheckedChange={(v: boolean) => onSelect(v ? 'exclude' : undefined)}
           />
         </View>
       </CardContent>
