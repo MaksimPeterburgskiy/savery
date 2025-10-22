@@ -5,6 +5,7 @@ pydantic-settings
 python-dotenv
 celery
 pytest
+pytest-cov
 psycopg[binary]
 debugpy
 pint
