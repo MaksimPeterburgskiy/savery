@@ -81,12 +81,12 @@ function XBox({
         )}>
         <Icon
           as={X}
-          size={12}
+          size={16}
           strokeWidth={Platform.OS === 'web' ? 2.5 : 3.5}
           className={cn('text-white', iconClassName)}
         />
       </CheckboxPrimitive.Indicator>
-      {!props.checked && <Icon as={X} size={12} className="text-white" />}
+      {!props.checked && <Icon as={X} size={16} className="text-white" />}
     </CheckboxPrimitive.Root>
   );
 }
