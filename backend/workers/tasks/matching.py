@@ -8,7 +8,6 @@ from celery import shared_task
 
 
 
-
 @shared_task(name="workers.matching.match_items")
 def match_items(payload: dict[str, Any]) -> dict[str, Any]:
     """Map free-form shopping list items to canonical product candidates."""

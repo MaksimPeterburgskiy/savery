@@ -5,43 +5,48 @@ import timezonefinder
 import json
 from celery import shared_task
 
+from geoalchemy2 import Geography
+from uuid import UUID
 from playwright.sync_api import sync_playwright
+from backend.app.db import session_scope
+from backend.app.models import Store, StoreChain
+
 
 hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
 price_chopper_states = ["NY", "VT", "MA", "CT", "PA", "NH"]
-class Store:
-    id: str
-    name: str
-    address_line_1: str
-    address_line_2: str
-    phone: str
-    city: str
-    region: str
-    zip_code: str
-    latitude: float
-    longitude: float
-    timezone: str
-    hours : json
+# class Store:
+#     id: str
+#     name: str
+#     address_line_1: str
+#     address_line_2: str
+#     phone: str
+#     city: str
+#     region: str
+#     zip_code: str
+#     latitude: float
+#     longitude: float
+#     timezone: str
+#     hours : json
 
-    def __init__(self, id: str, name: str, address_line_1: str, address_line_2: str, phone: str, country_code: str, city: str, region: str, zip_code: str,
-                 latitude: float, longitude: float, timezone: str, hours: json) -> None:
-        self.id = id
-        self.name = name
-        self.address_line_1 = address_line_1
-        self.address_line_2 = address_line_2
-        self.phone = phone
-        self.city = city
-        self.region = region
-        self.country_code = country_code
-        self.zip_code = zip_code
-        self.latitude = latitude
-        self.longitude = longitude
-        self.timezone = timezone
-        self.hours = hours
+#     def __init__(self, id: str, name: str, address_line_1: str, address_line_2: str, phone: str, country_code: str, city: str, region: str, zip_code: str,
+#                  latitude: float, longitude: float, timezone: str, hours: json) -> None:
+#         self.id = id
+#         self.name = name
+#         self.address_line_1 = address_line_1
+#         self.address_line_2 = address_line_2
+#         self.phone = phone
+#         self.city = city
+#         self.region = region
+#         self.country_code = country_code
+#         self.zip_code = zip_code
+#         self.latitude = latitude
+#         self.longitude = longitude
+#         self.timezone = timezone
+#         self.hours = hours
 
 
-    def __str__(self) -> str:
-        return f"Store(id = {self.id}, name = {self.name}, address_line_1 = {self.address_line_1}, address_line_2 = {self.address_line_2}, phone = {self.phone}, country = {self.country_code}, city = {self.city}, region = {self.region}, zip_code = {self.zip_code}, latitude = {self.latitude}, longitude = {self.longitude}, timezone = {self.timezone}, hours = {self.hours})"
+#     def __str__(self) -> str:
+#         return f"Store(id = {self.id}, name = {self.name}, address_line_1 = {self.address_line_1}, address_line_2 = {self.address_line_2}, phone = {self.phone}, country = {self.country_code}, city = {self.city}, region = {self.region}, zip_code = {self.zip_code}, latitude = {self.latitude}, longitude = {self.longitude}, timezone = {self.timezone}, hours = {self.hours})"
 
 class StoreProduct:
     brand = str
@@ -123,22 +128,25 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
     hours = hours_whole_json.get("hours")    
     store = Store(
-        id=url.split("/")[-1],
+
+        chain_id=None,
         name=name,
-        address_line_1=address_line_1,
-        address_line_2="",
-        phone=phone,
-        city=url.split("/")[4],
-        region=url.split("/")[3].upper(),
-        zip_code=zip_code,
+
+        number="",
+        address_line1=address_line_1,
+        city=city_name,
+        region=hannaford_state,
+        postal_code=zip_code,
+        country_code="US",
         latitude=latitude,
         longitude=longitude,
         timezone=timezone,
-        hours = hours,
-        country_code="US"
+        hours_json=hours,
+        phone=phone,
+        geography=f'POINT({longitude} {latitude})'
+        
     )
-    print(store)
-    print("-----")
+
     return store
 
 
@@ -231,19 +239,15 @@ def scrape_hannaford_items() -> None:
 
 def add_stores_to_db(stores: list[Store]) -> None:
     #add the stores to the database
-    
-    pass
+    with session_scope() as session:
+        for store in stores:
+            session.add(store)
+        session.commit()
 
-def get_item_data_hannaford(item) -> StoreProduct:
-    name = item.get_attribute("data-name")
-    price = item.get_attribute("data-price")
-    weight = item.get_attribute("data-variant")
-    brand = item.get_attribute("data-brand")
-    #scrape item data here
-    pass
 
 
 if __name__ == "__main__":
-   scrape_hannaford()
+   stores_ = scrape_hannaford()
+   add_stores_to_db(stores_)
   #  scrape_price_chopper()
   # scrape_hannaford_items()

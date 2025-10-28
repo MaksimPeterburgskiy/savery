@@ -7,9 +7,12 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Session
 
-from backend.app.models import StoreListResponse, StoreSummary
+from backend.app.models import StoreListResponse, StoreSummary, Store
 from backend.app.dependencies import get_db
 from haversine import haversine
+
+
+
 
 router = APIRouter()
 
