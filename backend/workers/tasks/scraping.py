@@ -228,6 +228,12 @@ def scrape_hannaford_items() -> None:
 
 
 
+
+def add_stores_to_db(stores: list[Store]) -> None:
+    #add the stores to the database
+    
+    pass
+
 def get_item_data_hannaford(item) -> StoreProduct:
     name = item.get_attribute("data-name")
     price = item.get_attribute("data-price")
@@ -238,6 +244,6 @@ def get_item_data_hannaford(item) -> StoreProduct:
 
 
 if __name__ == "__main__":
-  #  scrape_hannaford()
+   scrape_hannaford()
   #  scrape_price_chopper()
-   scrape_hannaford_items()
+  # scrape_hannaford_items()
