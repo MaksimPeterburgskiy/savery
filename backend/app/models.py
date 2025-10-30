@@ -27,6 +27,7 @@ class JobStage(str, Enum):
     MATCH = "MATCH"
     PRICING = "PRICING"
     OPTIMIZE = "OPTIMIZE"
+    HEALTHCHECK = "HEALTHCHECK"
 
 
 class JobStatus(str, Enum):
@@ -441,7 +442,7 @@ class Job(Base, table=True):
     status: JobStatus = Field(default=JobStatus.PENDING, nullable=False)
     progress_current: int | None = Field(default=None)
     progress_total: int | None = Field(default=None)
-    task_id: str = Field(index=True)
+    task_id: str | None = Field(default=None, index=True)
     message: str | None = Field(default=None)
 
 

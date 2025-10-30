@@ -5,13 +5,8 @@ Stop all processes and services started by run_backend.py.
 
 from __future__ import annotations
 
-from run_backend import (
-    CONTAINERS,
-    clear_state,
-    load_state,
-    stop_containers,
-    stop_processes,
-)
+from run_backend import (CONTAINERS, clear_state, load_state, stop_containers,
+                         stop_processes)
 
 
 def main() -> None:
@@ -27,7 +22,7 @@ def main() -> None:
     stop_containers(CONTAINERS.values())
 
     clear_state()
-    print("✅ Backend stopped.")
+    print(" Backend stopped.")
 
 
 if __name__ == "__main__":

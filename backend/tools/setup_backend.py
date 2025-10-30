@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 from typing import Iterable, Tuple
 
-
 TOOLS_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = TOOLS_DIR.parent
 REPO_ROOT = BACKEND_DIR.parent
@@ -70,12 +69,23 @@ def ensure_virtualenv(force: bool) -> None:
     if not MAKE_ENV.exists():
         raise SystemExit(f"Missing helper script: {MAKE_ENV}")
 
-    if force or not VENV_DIR.exists():
-        print("Creating backend virtualenv via make_env.py")
-        run_checked((sys.executable, str(MAKE_ENV)))
-    else:
-        print("Updating backend dependencies via make_env.py")
-        run_checked((sys.executable, str(MAKE_ENV)))
+    python_cmd = select_python_interpreter()
+    action = "Creating" if force or not VENV_DIR.exists() else "Updating"
+    print(f" {action} backend virtualenv via make_env.py")
+    run_checked((str(python_cmd), str(MAKE_ENV)), cwd=BACKEND_DIR)
+
+
+def select_python_interpreter() -> Path:
+    """Use the base interpreter when running inside an active virtualenv."""
+    executable = Path(sys.executable)
+    base_prefix = Path(getattr(sys, "base_prefix", sys.prefix))
+    current_prefix = Path(sys.prefix)
+
+    if base_prefix != current_prefix:
+        candidate = base_prefix / ("Scripts/python.exe" if os.name == "nt" else "bin/python3")
+        if candidate.exists():
+            return candidate
+    return executable
 
 
 def ensure_node_tooling() -> None:
@@ -83,7 +93,7 @@ def ensure_node_tooling() -> None:
     missing = find_missing(("node", "npm"))
     if missing:
         print(
-            "Node/npm not detected. Backend runs without it, but the frontend "
+            "  Node/npm not detected. Backend runs without it, but the frontend "
             "will need Node.js from https://nodejs.org/.",
             file=sys.stderr,
         )
@@ -111,10 +121,18 @@ def main() -> None:
     print("→ Ensuring backend virtualenv and requirements")
     ensure_virtualenv(force=args.force_venv)
 
+    stray_dir = BACKEND_DIR / "venv"
+    if stray_dir.exists():
+        relative = stray_dir.relative_to(REPO_ROOT)
+        print(
+            f"  Detected legacy '{relative}' directory. It is unused; remove it to avoid confusion.",
+            file=sys.stderr,
+        )
+
     ensure_node_tooling()
 
     python_bin = VENV_DIR / ("Scripts" if os.name == "nt" else "bin") / "python"
-    print(f"Backend ready. Activate the venv with:\n   source {python_bin.parent}/activate")
+    print(f" Backend ready. Activate the venv with:\n   source {python_bin.parent}/activate")
 
 
 if __name__ == "__main__":

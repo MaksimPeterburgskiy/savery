@@ -20,7 +20,6 @@ import time
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
-
 TOOLS_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = TOOLS_DIR.parent
 REPO_ROOT = BACKEND_DIR.parent
@@ -97,7 +96,7 @@ def stop_processes(state: Dict[str, object]) -> None:
             try:
                 kill_pid(pid, name)
             except RunnerError as exc:
-                print(f"⚠️  {exc}", file=sys.stderr)
+                print(f"  {exc}", file=sys.stderr)
 
 
 def stop_containers(containers: Iterable[str]) -> None:
@@ -314,7 +313,7 @@ def wait_for_processes(processes: Dict[str, subprocess.Popen]) -> int:
             proc = processes[name]
             code = proc.poll()
             if code is not None:
-                print(f"⚠️  {name} exited with code {code}")
+                print(f"  {name} exited with code {code}")
                 return code
         time.sleep(0.5)
 
