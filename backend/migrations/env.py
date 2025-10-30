@@ -29,6 +29,15 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = SQLModel.metadata
 
+EXCLUDED_AUTOGEN_TABLES = {"spatial_ref_sys"}
+
+
+def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
+    """Exclude extension-managed tables from autogenerate diffs."""
+    if type_ == "table" and name in EXCLUDED_AUTOGEN_TABLES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
@@ -39,6 +48,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_name=include_name,
     )
 
     with context.begin_transaction():
@@ -59,12 +69,20 @@ def run_migrations_online() -> None:
 
     if hasattr(connectable, "connect"):
         with connectable.connect() as connection:
-            context.configure(connection=connection, target_metadata=target_metadata)
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                include_name=include_name,
+            )
 
             with context.begin_transaction():
                 context.run_migrations()
     else:
-        context.configure(connection=connectable, target_metadata=target_metadata)
+        context.configure(
+            connection=connectable,
+            target_metadata=target_metadata,
+            include_name=include_name,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

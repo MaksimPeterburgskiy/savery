@@ -116,8 +116,6 @@ class Store(Base, table=True):
     region: str
     postal_code: str
     country_code: str = Field(sa_column=Column(String(2)))
-    latitude: float = Field(sa_column=Column(Float))
-    longitude: float = Field(sa_column=Column(Float))
     timezone: str
     hours_json: dict | None = Field(default=None, sa_column=Column(JSONB))
     phone: str
@@ -241,8 +239,10 @@ class RoutePlan(Base, table=True):
     )
     lowest_unit_price: bool = Field(default=False, nullable=False)
     max_stores: int = Field(default=3, nullable=False)
-    user_latitude: float | None = Field(default=None)
-    user_longitude: float | None = Field(default=None)
+    user_geography: Geography = Field(
+        default=None,
+        sa_column=Column(Geography(geometry_type="POINT", srid=4326), nullable=True),
+    )
     total_price: float | None = Field(
         default=None, sa_column=Column(Numeric(12, 2), nullable=True)
     )
