@@ -35,3 +35,8 @@ Make sure to use a venv (one should already exist in the backend folder) when wo
 - Background jobs/tasks: `backend/workers/`
 - Python deps: `backend/requirements.txt`
 - env scaffolding: `backend/tools/make_env.py`
+
+## Backend Tooling Scripts
+- `backend/tools/setup_backend.py`: Verifies Docker is running, ensures the backend virtualenv exists by delegating to `make_env.py`, installs Python dependencies, and warns when Node tooling is missing. Run this before launching services to prep a fresh machine. Optional flag `--force-venv` recreates the environment.
+- `backend/tools/run_backend.py`: Starts the supporting Docker containers (Postgres, RabbitMQ, Dragonfly), launches the FastAPI app via uvicorn and the Celery worker, and records state so reruns automatically clean up old processes to prevent port conflicts. Reads environment from `backend/.env`.
+- `backend/tools/stop_backend.py`: Convenience helper that reads the saved runner state, terminates uvicorn/Celery, stops the Docker containers, and clears the state file. Useful for manual shutdowns if `run_backend.py` is interrupted.
