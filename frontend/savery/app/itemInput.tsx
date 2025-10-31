@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Link, Stack } from 'expo-router';
 import { Plus, Trash, ArrowRight } from 'lucide-react-native';
+import { setItems as setStoredItems } from '@/lib/itemStore';
 
 interface Item {
   id: string;
@@ -109,6 +110,11 @@ function ItemInputCard({ name, quantity, onDelete }: ItemInputCardProps) {
 function itemInput() {
   const [hasItems, setHasItems] = useState(false);
 
+  function randomFloatFixed(min: number, max: number): number {
+    const v = Math.random() * (max - min) + min;
+    return Number(v.toFixed(2));
+  }
+
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View
@@ -137,7 +143,21 @@ function itemInput() {
               onDeleteItem={(id) => {
                 console.log('delete', id);
               }}
-              onListChange={(list) => setHasItems(list.length > 0)}
+              onListChange={(list) => {
+                setHasItems(list.length > 0);
+                // keep shared store in sync so other screens (eg itemMatch)
+                // can read the current item list. Add simple dummy `alts` and 'price'
+                const dummy = list.map((it) => ({
+                  ...it,
+                  price: randomFloatFixed(1, 50),
+                  alts: (it as any).alts ?? [
+                    `${it.name} suggestion A`,
+                    `${it.name} suggestion B`,
+                    `${it.name} suggestion C`,
+                  ],
+                }));
+                setStoredItems(dummy);
+              }}
             />
           </View>
         </ScrollView>

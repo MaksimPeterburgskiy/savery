@@ -126,76 +126,7 @@ function CardFooter({ className, ...props }: ViewProps & React.RefAttributes<Vie
 }
 
 
-type ItemMatchListProps = {
-  onAllSelected?: (allSelected: boolean) => void;
-};
 
-const ItemMatchList: React.FC<ItemMatchListProps> = ({ onAllSelected }) => {
-  const [items, setItems] = useState<Item[]>(itemData);
-  const [selections, setSelections] = useState<Record<string, 'include' | 'exclude' | undefined>>(
-    {}
-  );
-
-  // Notify the parent when all items are selected for inclusion
-  // To be used to enable the "confirm items" button on the itemMatch screemn
-  useEffect(() => {
-    const allSelected = items.length > 0 && items.every((it) => selections[it.id] === 'include');
-    onAllSelected?.(allSelected);
-  }, [selections, items, onAllSelected]);
-
-  const renderItem: ListRenderItem<Item> = ({ item }) => (
-    <ItemMatchCard
-      item={item}
-      selection={selections[item.id]}
-      onSelect={(sel) => {
-        setSelections((prev) => ({ ...prev, [item.id]: sel }));
-      }}
-    />
-  );
-
-  return (
-    <FlatList
-      data={items}
-      keyExtractor={(item) => item.id}
-      renderItem={renderItem}
-      contentContainerStyle={CardStyle.container}
-    />
-  );
-};
-
-interface ItemMatchCardProps {
-  item: Item;
-  selection?: 'include' | 'exclude' | undefined;
-  onSelect: (sel: 'include' | 'exclude' | undefined) => void;
-}
-
-const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item, selection, onSelect }) => {
-  return (
-    <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
-      <CardContent className="w-full flex-row items-start justify-between p-0">
-        <View className="flex-col items-start justify-between p-0">
-          <Text className="text-base text-[#000000ff]">{item.name}</Text>
-          <Text className="text-base text-[#000000ff]">${item.price.toFixed(2)}</Text>
-        </View>
-
-        <View className="align-center flex-row items-end items-center justify-between gap-2 p-0">
-          <Checkbox
-            style={CardStyle.checkContainer}
-            accessibilityLabel={`Include ${item.name}`}
-            checked={selection === 'include'}
-            onCheckedChange={(v: boolean) => onSelect(v ? 'include' : undefined)}
-          />
-          <XBox
-            style={CardStyle.xContainer}
-            accessibilityLabel={`Exclude ${item.name}`}
-            checked={selection === 'exclude'}
-            onCheckedChange={(v: boolean) => onSelect(v ? 'exclude' : undefined)}
-          />
-        </View>
-      </CardContent>
-    </Card>
-  );
-};
 
 // List of Items Grouped by store for the final list
 const StoreList: React.FC = () => {
@@ -265,5 +196,5 @@ export {
 //   ItemInputCard,
 //   ItemInputList,
   StoreList,
-  ItemMatchList,
+//   ItemMatchList,
 };
