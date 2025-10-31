@@ -10,7 +10,7 @@ import {
   type ViewProps,
   ListRenderItem,
 } from 'react-native';
-import { Ionicons as IonIcons } from '@expo/vector-icons';
+// import { Ionicons as IonIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
 import { Checkbox, XBox } from '@/components/ui/checkbox';
@@ -125,79 +125,6 @@ function CardFooter({ className, ...props }: ViewProps & React.RefAttributes<Vie
   return <View className={cn('flex flex-row items-center px-6', className)} {...props} />;
 }
 
-type ItemInputListProps = {
-  items: Item[];
-  onDeleteItem: (id: string) => void;
-};
-
-const ItemInputList: React.FC<ItemInputListProps> = ({ items: _items, onDeleteItem }) => {
-  const [list, setList] = useState<{ id: string; name: string; quantity?: number }[]>([]);
-  const [name, setName] = useState('');
-  const [qty, setQty] = useState<string>('');
-
-  const addItem = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const id = `${Date.now()}`;
-    const quantity = qty ? Math.max(1, parseInt(qty, 10) || 1) : undefined;
-    setList((prev) => [{ id, name: trimmed, quantity }, ...prev]);
-    setName('');
-    setQty('');
-  };
-
-  const handleDelete = (id: string) => {
-    setList((prev) => prev.filter((i) => i.id !== id));
-    onDeleteItem(id);
-  };
-
-  return (
-    <View className="gap-3">
-      <View className="flex-row items-center gap-3">
-        <Input
-          placeholder="Add item"
-          className="flex-1"
-          value={name}
-          onChangeText={setName}
-          onSubmitEditing={addItem}
-          returnKeyType="done"
-        />
-        <Button size="icon" variant="secondary" onPress={addItem} disabled={!name.trim()}>
-          <IonIcons name="add" size={20} color="#000" />
-        </Button>
-      </View>
-
-      {list.map((i) => (
-        <ItemInputCard
-          key={i.id}
-          name={i.name}
-          quantity={i.quantity}
-          onDelete={() => handleDelete(i.id)}
-        />
-      ))}
-    </View>
-  );
-};
-
-// Specific card for added items to list
-type ItemInputCardProps = {
-  name: string;
-  quantity?: number;
-  onDelete: () => void;
-};
-
-function ItemInputCard({ name, quantity, onDelete }: ItemInputCardProps) {
-  return (
-    <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
-      <CardContent className="w-full flex-row items-center justify-between p-0">
-        <Input placeholder="qty." className="w-12" />
-        <Text className="text-base text-[#000000ff]">{name}</Text>
-        <Button variant="ghost" size="icon" onPress={onDelete} className="h-10 w-10 rounded-full">
-          <IonIcons name="trash-outline" size={20} color="#FF5C5C" />
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 type ItemMatchListProps = {
   onAllSelected?: (allSelected: boolean) => void;
@@ -335,8 +262,8 @@ export {
   CardFooter,
   CardHeader,
   CardTitle,
-  ItemInputCard,
-  ItemInputList,
+//   ItemInputCard,
+//   ItemInputList,
   StoreList,
   ItemMatchList,
 };
