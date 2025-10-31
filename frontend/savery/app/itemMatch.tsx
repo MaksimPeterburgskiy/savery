@@ -8,14 +8,8 @@ import { Checkbox, XBox } from '@/components/ui/checkbox';
 import React, { useEffect, useState } from 'react';
 import { CardStyle } from '@/lib/theme';
 import { getItems, subscribe } from '@/lib/itemStore';
-
-interface Item {
-  id: string;
-  name: string;
-  price?: number;
-  quantity?: number;
-  alts?: string[];
-}
+import type { ItemRef } from '@/lib/itemStore';
+type Item = ItemRef;
 
 type ItemMatchListProps = {
   onAllSelected?: (allSelected: boolean) => void;
@@ -30,7 +24,17 @@ const ItemMatchList: React.FC<ItemMatchListProps> = ({ onAllSelected }) => {
   // Notify the parent when all items are selected for inclusion
   // To be used to enable the "confirm items" button on the itemMatch screemn
   useEffect(() => {
-    const allSelected = items.length > 0 && items.every((it) => selections[it.id] === 'include');
+    const allSelected =
+      items.length > 0 &&
+      items.every((it) => {
+        if (selections[it.id] === 'include') return true;
+        const alts = it.alts;
+        if (alts && alts.length > 0) {
+          return alts.some((alt) => selections[alt.id] === 'include');
+        }
+        return false;
+      });
+
     onAllSelected?.(allSelected);
   }, [selections, items, onAllSelected]);
 
@@ -42,13 +46,45 @@ const ItemMatchList: React.FC<ItemMatchListProps> = ({ onAllSelected }) => {
   }, []);
 
   const renderItem: ListRenderItem<Item> = ({ item }) => (
-    <ItemMatchCard
-      item={item}
-      selection={selections[item.id]}
-      onSelect={(sel) => {
-        setSelections((prev) => ({ ...prev, [item.id]: sel }));
-      }}
-    />
+    <View>
+      <ItemMatchCard
+        item={item}
+        selection={selections[item.id]}
+        onSelect={(sel) => {
+          setSelections((prev) => {
+            const next: Record<string, 'include' | 'exclude' | undefined> = {
+              ...prev,
+              [item.id]: sel,
+            };
+            // If parent is included, clear alts (they don't apply)
+            // Also if the selection becomes undefined clear alts
+            if (sel === 'include' || sel === undefined) {
+              if (item.alts && item.alts.length > 0) {
+                for (const alt of item.alts) {
+                  next[alt.id] = undefined;
+                }
+              }
+            }
+            return next;
+          });
+        }}
+      />
+
+      {/* If the item is explicitly excluded, render its alternatives beneath it */}
+      {selections[item.id] === 'exclude' && item.alts && item.alts.length > 0 ? (
+        <View style={{ marginLeft: 18, marginTop: 8, gap: 8 }}>
+          {item.alts.map((alt) => (
+            <ItemMatchCard
+              key={`${item.id}-alt-${alt.id}`}
+              item={alt}
+              selection={selections[alt.id]}
+              onSelect={(sel) => setSelections((prev) => ({ ...prev, [alt.id]: sel }))}
+            />
+          ))}
+          <View style={{ height: 0 }} />
+        </View>
+      ) : null}
+    </View>
   );
 
   return (

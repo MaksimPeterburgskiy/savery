@@ -1,7 +1,7 @@
 // Simple in-memory store for passing item lists between screens.
 // Not persisted — suitable for short-lived navigation state in this app.
 
-export type ItemRef = { id: string; name: string; quantity?: number; alts?: string[] };
+export type ItemRef = { id: string; name: string; price?: number; quantity?: number; alts?: ItemRef[] };
 
 let items: ItemRef[] = [];
 

@@ -20,7 +20,7 @@ import { setItems as setStoredItems } from '@/lib/itemStore';
 interface Item {
   id: string;
   name: string;
-  price: number;
+  price?: number;
   quantity?: number;
 }
 
@@ -147,15 +147,18 @@ function itemInput() {
                 setHasItems(list.length > 0);
                 // keep shared store in sync so other screens (eg itemMatch)
                 // can read the current item list. Add simple dummy `alts` and 'price'
-                const dummy = list.map((it) => ({
-                  ...it,
-                  price: randomFloatFixed(1, 50),
-                  alts: (it as any).alts ?? [
-                    `${it.name} suggestion A`,
-                    `${it.name} suggestion B`,
-                    `${it.name} suggestion C`,
-                  ],
-                }));
+                const dummy = list.map((it) => {
+                  const price = randomFloatFixed(1, 50);
+                  return {
+                    ...it,
+                    price,
+                    alts: (it as any).alts ?? [
+                      { id: `${it.id}-a`, name: `suggestion A`, price, quantity: it.quantity, alts: []  },
+                      { id: `${it.id}-b`, name: `suggestion B`, price, quantity: it.quantity, alts: []  },
+                      { id: `${it.id}-c`, name: `suggestion C`, price, quantity: it.quantity, alts: []  },
+                    ],
+                  };
+                });
                 setStoredItems(dummy);
               }}
             />
