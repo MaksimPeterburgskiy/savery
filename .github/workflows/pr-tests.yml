@@ -115,10 +115,47 @@ jobs:
         run: |
           python -c "from backend.app.migrations import upgrade_to_head; upgrade_to_head()"
 
+      - name: Start Celery worker
+        run: |
+          nohup celery -A backend.workers.celery_app:celery_app worker --loglevel=info --concurrency=1 > celery_worker.log 2>&1 &
+          echo $! > celery_worker.pid
+
+      - name: Verify Celery worker
+        run: |
+          python - <<'PY'
+          import sys
+          import time
+
+          from celery.exceptions import TimeoutError
+          from backend.workers.celery_app import celery_app
+
+          attempts = 6
+          delay = 5
+          for attempt in range(1, attempts + 1):
+              try:
+                  result = celery_app.send_task("workers.health.ping")
+                  result.get(timeout=15)
+              except TimeoutError:
+                  if attempt == attempts:
+                      raise
+                  time.sleep(delay)
+              else:
+                  sys.exit(0)
+
+          raise SystemExit("Celery worker did not respond to health check")
+          PY
+
       - name: Run tests
         run: |
           mkdir -p reports
           pytest backend/tests --junitxml=reports/pytest.xml
+
+      - name: Stop Celery worker
+        if: always()
+        run: |
+          if [ -f celery_worker.pid ]; then
+            kill "$(cat celery_worker.pid)" || true
+          fi
 
       - name: Publish test results
         if: always()

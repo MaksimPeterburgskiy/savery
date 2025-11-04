@@ -1,4 +1,4 @@
-"""Store catalog endpoints."""
+"""Shopping List endpoints."""
 
 from __future__ import annotations
 

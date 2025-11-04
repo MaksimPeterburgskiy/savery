@@ -81,8 +81,6 @@ Table stores {
   region            text        // state/province
   postal_code       text
   country_code      char(2)     // ISO 3166-1 alpha-2
-  latitude          double
-  longitude         double
   timezone          text
   hours_json        jsonb       // MVP: raw hours; can normalize later
   phone             text
@@ -166,8 +164,7 @@ Table route_plans {
   opt_mode          optimization_mode [not null, default: 'BALANCED']
   lowest_unit_price boolean [default: false]  // bulk-friendly mode
   max_stores        int   [default: 3]
-  user_latitude     double
-  user_longitude    double
+  user_geography         geography(Point,4326)
   // derived totals:
   total_price       numeric(12,2)
   total_distance_m  int              // meters

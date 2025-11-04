@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from alembic import command
@@ -25,8 +26,31 @@ def build_alembic_config() -> Config:
     return config
 
 
+def _configure_alembic_logging() -> None:
+    """Ensure Alembic logs bubble up through the FastAPI logger."""
+
+    alembic_logger = logging.getLogger("alembic")
+    alembic_logger.setLevel(logging.INFO)
+
+    handler_exists = any(
+        getattr(handler, "_savery_alembic_handler", False)
+        for handler in alembic_logger.handlers
+    )
+    if not handler_exists:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(
+            logging.Formatter("%(levelname)s  [%(name)s] %(message)s")
+        )
+        handler._savery_alembic_handler = True  # type: ignore[attr-defined]
+        alembic_logger.addHandler(handler)
+
+    alembic_logger.propagate = True
+
+
 def upgrade_to_head() -> None:
     """Apply database migrations up to the latest revision."""
 
     config = build_alembic_config()
+    _configure_alembic_logging()
     command.upgrade(config, "head")

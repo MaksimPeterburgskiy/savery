@@ -6,6 +6,7 @@ python-dotenv
 celery
 pytest
 pytest-cov
+pytest-xdist
 psycopg[binary]
 debugpy
 pint

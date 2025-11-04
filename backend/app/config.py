@@ -31,9 +31,8 @@ class Settings(BaseSettings):
 
     celery_broker_url: str = "amqp://guest:guest@localhost//"
     celery_result_backend: str = "rpc://"
-    celery_matching_task: str = "workers.matching.match_items"
-    celery_pricing_task: str = "workers.scraping.fetch_prices"
-    celery_route_task: str = "workers.optimize.plan_route"
+    celery_health_task: str = "workers.health.run_demo"
+    celery_demo_task_delay_seconds: float = 1.0
 
     task_status_base_url: Optional[str] = None
 

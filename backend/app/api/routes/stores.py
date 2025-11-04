@@ -1,185 +1,162 @@
-"""Store catalog endpoints."""
+"""Store endpoints."""
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
+from typing import Sequence
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
-from sqlalchemy import text
-from sqlmodel import Session
+from geoalchemy2 import Geography
+from sqlalchemy import cast, func
+from sqlmodel import Session, select
+from pydantic import BaseModel, ConfigDict, Field
 
-from backend.app.models import StoreListResponse, StoreSummary, Store
 from backend.app.dependencies import get_db
-from haversine import haversine
-
-
-
+from backend.app.models import Store, StoreChain
 
 router = APIRouter()
 
 
-class NearbyStore(BaseModel):
-    id: str
+class StoreResponse(BaseModel):
+    """API response payload for a single store."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    chain_id: UUID | None
     name: str
-    latitude: float
-    longitude: float
-    distance_km: float
+    number: str
+    address_line1: str
+    address_line2: str | None = None
+    city: str
+    region: str
+    postal_code: str
+    country_code: str
+    timezone: str
+    phone: str
+    external_ref: dict | None = None
+    hours_json: dict | None = None
+    longitude: float | None = None
+    latitude: float | None = None
+    created_at: datetime
+    updated_at: datetime
 
+    @classmethod
+    def from_model(cls, store: Store, geography_geojson: str | None) -> "StoreResponse":
+        """Instantiate a response object from a SQLModel store instance."""
 
-
-
-@router.get("/stores", response_model=StoreListResponse, summary="List supported retailers")
-async def list_supported_stores() -> StoreListResponse:
-    """Return a placeholder set of stores until the catalog is backed by Postgres."""
-
-    # TODO: Replace with real database query once the ORM layer is wired.
-    #we will get unique store names from the database
-    demo_stores = [
-        StoreSummary(
-            id="kroger-demo",
-            name="Kroger Demo Store",
-            address="123 Demo Ave, Albany, NY",
-            latitude=42.6526,
-            longitude=-73.7562,
-        ),
-        StoreSummary(
-            id="walmart-demo",
-            name="Walmart Demo Supercenter",
-            address="456 Sample Rd, Albany, NY",
-            latitude=42.6895,
-            longitude=-73.8503,
-        ),
-    ]
-
-    return StoreListResponse(stores=demo_stores)
-
-#queries the database for stores within a certain radius of the given lat/lon
-#returns a list of stores with their id, name, latitude, longitude, and distance from the user
-@router.get("/stores/nearby", response_model=list[NearbyStore], summary="Find nearby stores")
-async def find_nearby_stores(
-    userLat: float,
-    userLong: float,
-    radius_km: float = Query(5.0, description="Search radius in kilometers"),
-    limit: int = Query(10, description="Maximum number of stores to return"),
-    db: Session = Depends(get_db),
-) -> list[NearbyStore]:
-    """Return stores within radius_km of the given user location.
-
-    This attempts to use PostGIS functions (ST_DWithin + ST_Distance) against the
-    `stores` table. If the database or PostGIS is unavailable the function falls
-    back to an in-memory demo list and a haversine filter.
-    """
-
-    # If DB is available try a spatial query using PostGIS
-    try:
-        radius_m = float(radius_km) * 1000.0
-
-        sql = text(
-            """
-            SELECT
-                external_id AS id,
-                name,
-                NULLIF(address, '') AS address,
-                latitude,
-                longitude,
-                ST_Distance(
-                    (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326))::geography,
-                    (ST_SetSRID(ST_MakePoint(:lon, :lat), 4326))::geography
-                ) AS distance_m
-            FROM stores
-            WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-              AND ST_DWithin(
-                    (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326))::geography,
-                    (ST_SetSRID(ST_MakePoint(:lon, :lat), 4326))::geography,
-                    :radius_m
-              )
-            ORDER BY distance_m
-            LIMIT :limit
-            """
+        base_data = store.model_dump(
+            exclude={
+                "geography",
+                "chain",
+                "store_products",
+                "plan_selected",
+                "store_visits",
+                "item_matches",
+            }
         )
+        coords = _extract_point_coordinates(geography_geojson)
+        if coords is not None:
+            base_data.update({"longitude": coords[0], "latitude": coords[1]})
 
-        params = {"lat": float(userLat), "lon": float(userLong), "radius_m": radius_m, "limit": int(limit)}
+        return cls(**base_data)
 
-        rows = db.exec(sql, params).all()
 
-        results: list[NearbyStore] = []
-        for r in rows:
-            # r may be a SQLAlchemy Row; access by column name
-            distance_km = float(r.distance_m) / 1000.0 if r.distance_m is not None else 0.0
-            results.append(
-                NearbyStore(
-                    id=r.id,
-                    name=r.name,
-                    latitude=float(r.latitude) if r.latitude is not None else 0.0,
-                    longitude=float(r.longitude) if r.longitude is not None else 0.0,
-                    distance_km=round(distance_km, 3),
-                )
-            )
+def _extract_point_coordinates(geojson_text: str | None) -> tuple[float, float] | None:
+    """Return longitude/latitude tuple from a GeoJSON Point payload."""
 
-        return results
+    if not geojson_text:
+        return None
 
-    except Exception:
-        # Fallback to demo list when DB/PostGIS is not available or query fails
-        demo_stores = [
-            StoreSummary(
-                id="kroger-demo",
-                name="Kroger Demo Store",
-                address="123 Demo Ave, Albany, NY",
-                latitude=42.6526,
-                longitude=-73.7562,
-            ),
-            StoreSummary(
-                id="walmart-demo",
-                name="Walmart Demo Supercenter",
-                address="456 Sample Rd, Albany, NY",
-                latitude=42.6895,
-                longitude=-73.8503,
-            ),
-            StoreSummary(
-                id="faraway-store",
-                name="Faraway Store",
-                address="789 Distant St, New York, NY",
-                latitude=40.7128,
-                longitude=-74.0060,
-            ),
-        ]
+    try:
+        payload = json.loads(geojson_text)
+    except (TypeError, json.JSONDecodeError):
+        return None
 
-        results: list[NearbyStore] = []
-        user_location = (userLat, userLong)
-        for store in demo_stores:
-            store_location = (store.latitude, store.longitude)
-            distance = haversine(user_location, store_location)
-            if distance <= radius_km:
-                results.append(NearbyStore(
-                    id=store.id,
-                    name=store.name,
-                    latitude=store.latitude,
-                    longitude=store.longitude,
-                    distance_km=round(distance, 3)
-                ))
-            if len(results) >= limit:
-                break
+    if (
+        not isinstance(payload, dict)
+        or payload.get("type") != "Point"
+        or not isinstance(payload.get("coordinates"), (list, tuple))
+        or len(payload["coordinates"]) != 2
+    ):
+        return None
 
-        return sorted(results, key=lambda s: s.distance_km)[:limit]
-# @router.get("/stores", response_model=StoreListResponse, summary="List supported retailers")
-# async def list_supported_stores() -> StoreListResponse:
-#     """Return a placeholder set of stores until the catalog is backed by Postgres."""
+    lon, lat = payload["coordinates"]
+    if not isinstance(lon, (float, int)) or not isinstance(lat, (float, int)):
+        return None
 
-#     # TODO: Replace with real database query once the ORM layer is wired.
-#     demo_stores = [
-#         StoreSummary(
-#             id="kroger-demo",
-#             name="Kroger Demo Store",
-#             address="123 Demo Ave, Albany, NY",
-#             latitude=42.6526,
-#             longitude=-73.7562,
-#         ),
-#         StoreSummary(
-#             id="walmart-demo",
-#             name="Walmart Demo Supercenter",
-#             address="456 Sample Rd, Albany, NY",
-#             latitude=42.6895,
-#             longitude=-73.8503,
-#         ),
-#     ]
+    return float(lon), float(lat)
 
-#     return StoreListResponse(stores=demo_stores)
+
+class StoreChainsWithStoresResponse(BaseModel):
+    """Response model for store chains with stores."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    stores: list[StoreResponse] = Field(default_factory=list)
+    
+
+#get store chains
+@router.get("/store_chains", response_model=Sequence[StoreChain], summary="Get all store chains")
+async def get_store_chains(session: Session = Depends(get_db)) -> Sequence[StoreChain]:
+    statement = select(StoreChain)
+    results = session.exec(statement).all()
+    return results
+
+#get stores by store chain
+@router.get("/store_chains/{store_chain_id}/stores", response_model=Sequence[StoreResponse], summary="Get stores by store chain")
+async def get_stores_by_store_chain(store_chain_id: UUID, session: Session = Depends(get_db)) -> Sequence[StoreResponse]:
+    """Return all stores for a given store chain."""
+
+    statement = (
+        select(
+            Store,
+            func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
+        )
+        .where(Store.chain_id == store_chain_id)
+    )
+    results = session.exec(statement).all()
+    return [StoreResponse.from_model(store, geojson) for store, geojson in results]
+
+#get storeschains[stores] by distance from location
+@router.get("/store_chains/nearby", response_model=Sequence[StoreChainsWithStoresResponse], summary="Get store chains by driving distance from location")
+async def get_nearby_store_chains(
+    latitude: float = Query(..., description="Latitude of the reference point."),
+    longitude: float = Query(..., description="Longitude of the reference point."),
+    distance_km: float = Query(..., gt=0, description="Search radius in kilometers."),
+    session: Session = Depends(get_db),
+) -> Sequence[StoreChainsWithStoresResponse]:
+    """Return all store chains within a certain driving distance from a location."""
+    search_radius_m = distance_km * 1000.0
+    reference_point = cast(
+        func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326),
+        Geography(geometry_type="POINT", srid=4326),
+    )
+
+    stmt = (
+        select(
+            Store,
+            StoreChain,
+            func.ST_Distance(Store.geography, reference_point).label("distance"),
+            func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
+        )
+        .join(StoreChain, Store.chain_id == StoreChain.id)
+        .where(
+            Store.geography.isnot(None),
+            func.ST_DWithin(Store.geography, reference_point, search_radius_m),
+        )
+        .order_by("distance")
+    )
+
+    chain_map: dict[UUID, StoreChainsWithStoresResponse] = {}
+    for store, chain, _, geojson in session.exec(stmt):
+        chain_payload = chain_map.setdefault(
+            chain.id, StoreChainsWithStoresResponse(id=chain.id, name=chain.name)
+        )
+        chain_payload.stores.append(StoreResponse.from_model(store, geojson))
+
+    return list(chain_map.values())
