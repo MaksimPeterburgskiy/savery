@@ -13,28 +13,21 @@ def client() -> TestClient:
     with TestClient(create_app()) as c:
         yield c
 
-def cleanup_store_data(id) -> None:
-    with session_scope() as session:
-        # Delete store by id
-        statement = select(Store).where(Store.id == id)
-        store = session.exec(statement).scalars().first()
-        if store:
-            session.delete(store)
-            session.commit()
 
-def cleanup_store_chain_data(id : UUID) -> None:
+def cleanup_store_chain_data() -> None:
     with session_scope() as session:
+
         # Delete any stores belonging to the chain
-        stores = session.exec(select(Store).where(Store.chain_id == id)).scalars().all()
-        for store in stores:
-            session.delete(store)
+        stores = session.exec(select(Store)).scalars().all()
+        for store_ in stores:
+            session.delete(store_)
 
         # Then delete the chain itself
-        statement = select(StoreChain).where(StoreChain.id == id)
+        statement = select(StoreChain)
         store_chain = session.exec(statement).scalars().first()
         if store_chain:
             session.delete(store_chain)
-  
+        session.commit()
 
 def test_add_store_chain() -> None:
     id = uuid4()   
@@ -55,14 +48,21 @@ def test_add_store_chain() -> None:
         if existing_chain is None:
             session.add(chain)
         session.flush()
-    cleanup_store_chain_data(id)
+    # pass the primitive id (not the detached model instance) so cleanup
+    # doesn't try to access attributes on a detached StoreChain instance
+    cleanup_store_chain_data()
     
 def test_add_single_store() -> None:
+    chain_id = uuid4()
+    store_id = uuid4()
+    chain = StoreChain(
+        id=chain_id,
+        name="Test Chain",
+    )
     store = Store(
-        
-        id=UUID("123e4567-e89b-12d3-a456-426614174000"),
+        id=store_id,    
         number="001",
-        chain_id=UUID("123e4567-e89b-12d3-a456-426614174001"),
+        chain_id=chain_id,
         name="Test Store",
         city="Test City",
         region="Test Region",
@@ -75,8 +75,11 @@ def test_add_single_store() -> None:
         longitude=-74.0060,
         geography='POINT(-74.0060 40.7128)',
     )
-
+    
     with session_scope() as session:
+        
+        session.add(chain)
+        
         # Check if the store already exists
         statement = select(Store).where(
             and_(
@@ -89,45 +92,41 @@ def test_add_single_store() -> None:
         existing_store = session.exec(statement).scalars().first()
         if existing_store is None:
             session.add(store)
-            session.commit()
-
-    cleanup_store_data(store.id)
+        session.flush()
     
+    cleanup_store_chain_data()
+
+
 
 def test_create_store_data() -> None:
     stores = scrape_hannaford()
-    
+    chain_id = uuid4() 
     #make sure store chains exist
     with session_scope() as session:
         statement = select(StoreChain).where(StoreChain.name == "Hannaford")
         existing_chain = session.exec(statement).scalars().first()
         if existing_chain is None:
             hannaford_chain = StoreChain(
-                id=UUID("11111111-1111-1111-1111-111111111111"),
+                id=chain_id,
                 name="Hannaford",
             )
             session.add(hannaford_chain)
             session.commit()
-    
     with session_scope() as session:
         for store in stores:
+            store.chain_id = chain_id
             # Check if the store already exists
+            print(store.number)
             statement = select(Store).where(
                 and_(
-                    Store.client_id == "hannaford",
-                    Store.store_chain_id == store.store_chain_id,
                     Store.name == store.name,
-                    Store.address == store.address,
+                    Store.chain_id == store.chain_id,
                 )
             )
             existing_store = session.exec(statement).scalars().first()
             if existing_store is None:
                 session.add(store)
+            session.flush() 
         session.commit()
+   # cleanup_store_chain_data()
     
-    
-    def test_store_count() -> None:
-        with session_scope() as session:
-            statement = select(Store).where(Store.client_id == "hannaford")
-            store_count = session.exec(statement).scalars().all()
-            assert len(store_count) >= 10  # Assuming we expect at least 10 stores

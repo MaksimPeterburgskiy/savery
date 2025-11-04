@@ -6,13 +6,14 @@ import json
 from celery import shared_task
 
 from geoalchemy2 import Geography
-from uuid import UUID
+from uuid import UUID, uuid4
 from playwright.sync_api import sync_playwright
 from backend.app.db import session_scope
 from backend.app.models import Store, StoreChain
 
 
-hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
+#hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
+hannaford_states = ["NH"]
 price_chopper_states = ["NY", "VT", "MA", "CT", "PA", "NH"]
 # class Store:
 #     id: str
@@ -103,7 +104,8 @@ def scrape_hannaford() -> None:
                     store = get_store_data_hannaford(page, f"https://stores.hannaford.com/{city_url}", city_name, hannaford_state)
 
                     stores.append(store)
-        
+                if (len(stores) > 10):
+                    break
         context.close()
         browser.close()
         return stores
@@ -111,7 +113,9 @@ def scrape_hannaford() -> None:
 
 def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: str) -> Store:
     page.goto(url)
+    print(url)
     name = page.locator("[class=Core-storeName]").inner_text().strip()    
+    number = url.split("/")[-1]
     address_list = page.locator("[class=c-bread-crumbs-list]")
     address_line_1 = address_list.locator("li").nth(-1).inner_text().strip()
     addresswrapper = page.locator("div.Core-addressWrapper")
@@ -128,11 +132,11 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
     hours = hours_whole_json.get("hours")    
     store = Store(
-
+        id=uuid4(),
         chain_id=None,
         name=name,
 
-        number="",
+        number=number,
         address_line1=address_line_1,
         city=city_name,
         region=hannaford_state,
@@ -248,6 +252,7 @@ def add_stores_to_db(stores: list[Store]) -> None:
 
 if __name__ == "__main__":
    stores_ = scrape_hannaford()
-   add_stores_to_db(stores_)
+   print(f"Scraped {len(stores_)} stores from Hannaford")
+   #add_stores_to_db(stores_)
   #  scrape_price_chopper()
   # scrape_hannaford_items()
