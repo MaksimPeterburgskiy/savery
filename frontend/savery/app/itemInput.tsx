@@ -97,7 +97,7 @@ function ItemInputCard({ name, quantity, onDelete }: ItemInputCardProps) {
   return (
     <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
       <CardContent className="w-full flex-row items-center justify-between p-0">
-        <Input placeholder="" className="w-12" />
+        <Input placeholder="" className="w-16" />
         <Text className="text-base text-[#000000ff]">{name}</Text>
         <Button variant="ghost" size="icon" onPress={onDelete} className="h-10 w-10 rounded-full">
           <Trash size={20} color="#FF5C5C" />
@@ -110,6 +110,7 @@ function ItemInputCard({ name, quantity, onDelete }: ItemInputCardProps) {
 function itemInput() {
   const [hasItems, setHasItems] = useState(false);
 
+  // For random price place holders
   function randomFloatFixed(min: number, max: number): number {
     const v = Math.random() * (max - min) + min;
     return Number(v.toFixed(2));
@@ -153,9 +154,27 @@ function itemInput() {
                     ...it,
                     price,
                     alts: (it as any).alts ?? [
-                      { id: `${it.id}-a`, name: `suggestion A`, price, quantity: it.quantity, alts: []  },
-                      { id: `${it.id}-b`, name: `suggestion B`, price, quantity: it.quantity, alts: []  },
-                      { id: `${it.id}-c`, name: `suggestion C`, price, quantity: it.quantity, alts: []  },
+                      {
+                        id: `${it.id}-a`,
+                        name: `suggestion A`,
+                        price,
+                        quantity: it.quantity,
+                        alts: [],
+                      },
+                      {
+                        id: `${it.id}-b`,
+                        name: `suggestion B`,
+                        price,
+                        quantity: it.quantity,
+                        alts: [],
+                      },
+                      {
+                        id: `${it.id}-c`,
+                        name: `suggestion C`,
+                        price,
+                        quantity: it.quantity,
+                        alts: [],
+                      },
                     ],
                   };
                 });

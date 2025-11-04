@@ -1,28 +1,33 @@
 import { FlatList, ListRenderItem, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox, XBox } from '@/components/ui/checkbox';
 import React, { useEffect, useState } from 'react';
 import { CardStyle } from '@/lib/theme';
-import { getItems, subscribe } from '@/lib/itemStore';
+import { getItems, subscribe, setItems } from '@/lib/itemStore';
 import type { ItemRef } from '@/lib/itemStore';
 type Item = ItemRef;
 
 type ItemMatchListProps = {
   onAllSelected?: (allSelected: boolean) => void;
+  items: Item[];
+  selections: Record<string, 'include' | 'exclude' | undefined>;
+  setSelections: React.Dispatch<
+    React.SetStateAction<Record<string, 'include' | 'exclude' | undefined>>
+  >;
 };
 
-const ItemMatchList: React.FC<ItemMatchListProps> = ({ onAllSelected }) => {
-  const [items, setItems] = useState<Item[]>(() => getItems());
-  const [selections, setSelections] = useState<Record<string, 'include' | 'exclude' | undefined>>(
-    {}
-  );
-
+const ItemMatchList: React.FC<ItemMatchListProps> = ({
+  onAllSelected,
+  items,
+  selections,
+  setSelections,
+}) => {
   // Notify the parent when all items are selected for inclusion
-  // To be used to enable the "confirm items" button on the itemMatch screemn
+  // To be used to enable the "confirm items" button on the itemMatch screen
   useEffect(() => {
     const allSelected =
       items.length > 0 &&
@@ -37,13 +42,6 @@ const ItemMatchList: React.FC<ItemMatchListProps> = ({ onAllSelected }) => {
 
     onAllSelected?.(allSelected);
   }, [selections, items, onAllSelected]);
-
-  // subscribe to shared item store so this list updates when items are
-  // added/removed from the previous screen
-  useEffect(() => {
-    const unsub = subscribe((next) => setItems(next));
-    return unsub;
-  }, []);
 
   const renderItem: ListRenderItem<Item> = ({ item }) => (
     <View>
@@ -134,19 +132,55 @@ const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item, selection, onSelect
 };
 
 function ItemMatch() {
+  const [items, setItemsState] = useState<Item[]>(() => getItems());
+  const [selections, setSelections] = useState<Record<string, 'include' | 'exclude' | undefined>>(
+    {}
+  );
   const [allSelected, setAllSelected] = useState(false);
+  const router = useRouter();
+
+  // subscribe to shared item store so this list updates when items are
+  // added/removed from the previous screen
+  useEffect(() => {
+    const unsub = subscribe((next) => setItemsState(next));
+    return unsub;
+  }, []);
+
+  const confirmAndProceed = () => {
+    // include any original items or alts explicitly marked 'include'
+    const included: Item[] = [];
+    for (const it of items) {
+      if (selections[it.id] === 'include') {
+        included.push(it);
+      }
+      if (it.alts && it.alts.length > 0) {
+        for (const alt of it.alts) {
+          if (selections[alt.id] === 'include') {
+            included.push(alt);
+          }
+        }
+      }
+    }
+
+    // send included items to the shared store so FinalList consumes them
+    setItems(included);
+    router.push('/finalList');
+  };
 
   return (
     <View style={{ flex: 1, gap: 10, marginTop: 80, marginLeft: 20, marginRight: 20 }}>
-      <ItemMatchList onAllSelected={(v) => setAllSelected(v)} />
+      <ItemMatchList
+        onAllSelected={(v) => setAllSelected(v)}
+        items={items}
+        selections={selections}
+        setSelections={setSelections}
+      />
       {allSelected && (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40 }}>
-          <Link href="/finalList" asChild>
-            <Button variant="continue" size="xl">
-              <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
-              <Ionicons name="arrow-forward" size={20} color="white" />
-            </Button>
-          </Link>
+          <Button variant="continue" size="xl" onPress={confirmAndProceed}>
+            <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
+            <Ionicons name="arrow-forward" size={20} color="white" />
+          </Button>
         </View>
       )}
     </View>

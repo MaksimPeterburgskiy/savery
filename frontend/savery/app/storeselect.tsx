@@ -17,23 +17,23 @@ function StoreSelect() {
       {/* Tab list */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="Price">
+          <TabsTrigger value="Speed">
             <Text>Price</Text>
           </TabsTrigger>
-          <TabsTrigger value="Distance">
+          <TabsTrigger value="Balanced">
             <Text>Distance</Text>
           </TabsTrigger>
-          <TabsTrigger value="Unit Price">
+          <TabsTrigger value="Price">
             <Text>Unit Price</Text>
           </TabsTrigger>
         </TabsList>
 
         {/* Tab Content */}
-        <TabsContent value="Price">
-          <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
+        <TabsContent value="Speed">
+          {/* <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
             <Text style={{ color: 'black' }}>Map for Price Based Search</Text>
-            {/* <Button variant="store"></Button> */}
-          </View>
+            <Button variant="store"></Button>
+          </View> */}
           <Link href="/itemMatch" asChild>
             <Button variant="continue" size="xl">
               <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
@@ -41,10 +41,10 @@ function StoreSelect() {
             </Button>
           </Link>
         </TabsContent>
-        <TabsContent value="Distance">
-          <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
+        <TabsContent value="Balanced">
+          {/* <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
             <Text style={{ color: 'black' }}>Map for Distance Based Search</Text>
-          </View>
+          </View> */}
           <Link href="/itemMatch" asChild>
             <Button variant="continue" size="xl">
               <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
@@ -52,10 +52,10 @@ function StoreSelect() {
             </Button>
           </Link>
         </TabsContent>
-        <TabsContent value="Unit Price">
-          <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
+        <TabsContent value="Price">
+          {/* <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
             <Text style={{ color: 'black' }}>Map for Unit Price Based Search</Text>
-          </View>
+          </View> */}
           <Link href="/itemMatch" asChild>
             <Button variant="continue" size="xl">
               <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
@@ -64,6 +64,9 @@ function StoreSelect() {
           </Link>
         </TabsContent>
       </Tabs>
+      <View style={{ height: 500, alignItems: 'center', backgroundColor: 'lightgray' }}>
+        <Text style={{ color: 'black' }}>Map for Unit Price Based Search</Text>
+      </View>
     </View>
   );
 }

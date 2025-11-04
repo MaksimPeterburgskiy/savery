@@ -128,63 +128,6 @@ function CardFooter({ className, ...props }: ViewProps & React.RefAttributes<Vie
 
 
 
-// List of Items Grouped by store for the final list
-const StoreList: React.FC = () => {
-  const [stores, setStores] = useState<Store[]>(storeData);
-  const renderStore: ListRenderItem<Store> = ({ item }) => <StoreCard store={item} />;
-
-  return (
-    <FlatList
-      data={stores}
-      keyExtractor={(store) => store.id}
-      renderItem={renderStore}
-      contentContainerStyle={CardStyle.container}
-    />
-  );
-};
-
-interface StoreCardProps {
-  store: Store;
-}
-
-const StoreCard: React.FC<StoreCardProps> = ({ store }) => {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  return (
-    <View style={CardStyle.card}>
-      <View style={CardStyle.header}>
-        <Text style={CardStyle.storeName}>
-          {store.name} - {store.distance}
-        </Text>
-        <Text style={CardStyle.totalCost}>${store.totalCost.toFixed(2)}</Text>
-      </View>
-
-      {store.items.map((item) => (
-        <View key={item.id} style={CardStyle.itemRow}>
-          <View style={CardStyle.imagePlaceholder} />
-          <View style={CardStyle.itemInfo}>
-            <Text style={CardStyle.itemName}>{item.name}</Text>
-            <Text style={CardStyle.itemPrice}>${item.price.toFixed(2)}</Text>
-          </View>
-
-          <Checkbox
-            style={CardStyle.checkContainer}
-            accessibilityLabel={`Select ${item.name}`}
-            checked={selectedIds.has(item.id)}
-            onCheckedChange={(v: boolean) => {
-              setSelectedIds((prev) => {
-                const next = new Set(prev);
-                if (v) next.add(item.id);
-                else next.delete(item.id);
-                return next;
-              });
-            }}
-          />
-        </View>
-      ))}
-    </View>
-  );
-};
 
 export {
   Card,
@@ -195,6 +138,6 @@ export {
   CardTitle,
 //   ItemInputCard,
 //   ItemInputList,
-  StoreList,
+//   StoreList,
 //   ItemMatchList,
 };
