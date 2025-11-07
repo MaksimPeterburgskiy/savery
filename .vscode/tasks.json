@@ -70,6 +70,50 @@
       }
     },
     {
+      "label": "terminate uvicorn web api",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "pkill -f \"uvicorn.*backend\\.app\\.main:app\" >/dev/null 2>&1 || true"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "never"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference = 'SilentlyContinue'; $pattern = 'uvicorn.*backend\\.app\\.main:app'; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; exit 0"
+        ]
+      }
+    },
+    {
+      "label": "terminate celery worker",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "pkill -f \"celery.*backend\\.workers\\.celery_app:celery_app\" >/dev/null 2>&1 || true"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "never"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference = 'SilentlyContinue'; $pattern = 'celery.*backend\\.workers\\.celery_app:celery_app'; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; exit 0"
+        ]
+      }
+    },
+    {
       "label": "start services (postgres+rabbitmq+dragonfly)",
       "dependsOn": [
         "start postgres",

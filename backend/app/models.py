@@ -1,18 +1,17 @@
 """Domain and API models backed by SQLModel."""
 
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
-import uuid
+from typing import List, Optional
 from uuid import UUID
-from typing import List
 
 from geoalchemy2 import Geography
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, Float, Numeric, String
+from pydantic import ConfigDict
+from sqlalchemy import Column, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Index, Relationship, SQLModel, UniqueConstraint
-from pydantic import ConfigDict
-
 
 # Enumerations -----------------------------------------------------------------
 
@@ -37,13 +36,6 @@ class JobStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class MatchStatus(str, Enum):
-    PENDING = "PENDING"
-    SELECTED = "SELECTED"
-    REJECTED = "REJECTED"
-    UNMATCHED = "UNMATCHED"
-
-
 # Base class -------------------------------------------------------------------
 def utcnow() -> datetime:
     """Return current UTC time for timestamp defaults."""
@@ -54,7 +46,7 @@ class Base(SQLModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True, nullable=False)
     created_at: datetime = Field(default_factory=utcnow, nullable=False)
-    updated_at: datetime = Field(default_factory=utcnow,nullable=False, sa_column_kwargs={"onupdate": utcnow})
+    updated_at: datetime = Field(default_factory=utcnow, nullable=False, sa_column_kwargs={"onupdate": utcnow})
 
 
 # Shopping Lists ---------------------------------------------------------------
@@ -64,16 +56,20 @@ class ShoppingList(Base, table=True):
     client_id: str | None = Field(default=None, index=True)
     title: str | None = Field(default=None)
 
-    list_items: List["ListItem"] = Relationship(back_populates="list")
-    route_plans: List["RoutePlan"] = Relationship(back_populates="list")
+    list_items: List["ListItem"] = Relationship(
+        back_populates="list",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    route_plans: List["RoutePlan"] = Relationship(
+        back_populates="list",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class ListItem(Base, table=True):
     __tablename__ = "list_items"
 
-    list_id: UUID = Field(
-        foreign_key="shopping_lists.id", nullable=False, index=True
-    )
+    list_id: UUID = Field(foreign_key="shopping_lists.id", nullable=False, index=True)
     list: ShoppingList | None = Relationship(back_populates="list_items")
 
     raw_text_qty: str | None = Field(default=None)
@@ -86,6 +82,7 @@ class ListItem(Base, table=True):
     position: int = Field(nullable=False)
 
     item_matches: List["ItemMatch"] = Relationship(back_populates="list_item")
+    match_candidates: List["ItemMatchCandidate"] = Relationship(back_populates="list_item")
     plan_items: List["PlanItem"] = Relationship(back_populates="list_item")
 
 
@@ -103,9 +100,7 @@ class StoreChain(Base, table=True):
 class Store(Base, table=True):
     __tablename__ = "stores"
 
-    chain_id: UUID | None = Field(
-        default=None, foreign_key="store_chains.id", index=True
-    )
+    chain_id: UUID | None = Field(default=None, foreign_key="store_chains.id", index=True)
     chain: StoreChain | None = Relationship(back_populates="stores")
 
     name: str
@@ -142,10 +137,12 @@ class Product(Base, table=True):
     pkg_qty_unit: str | None = Field(default=None)
     base_qty_value: float | None = Field(default=None)
     base_qty_unit: str | None = Field(default=None)
-    embedding: list[float] | None = Field(default=None,sa_column=Column(Vector(384)))
+    embedding: list[float] | None = Field(default=None, sa_column=Column(Vector(384)))
     embedding_dim: int | None = Field(default=None)
+    image_url: str | None = Field(default=None)
 
     store_products: List["StoreProduct"] = Relationship(back_populates="product")
+    match_candidates: List["ItemMatchCandidate"] = Relationship(back_populates="product")
 
 
 class StoreProduct(Base, table=True):
@@ -163,14 +160,10 @@ class StoreProduct(Base, table=True):
         ),
     )
 
-    store_id: UUID = Field(
-        foreign_key="stores.id", nullable=False, index=True
-    )
+    store_id: UUID = Field(foreign_key="stores.id", nullable=False, index=True)
     store: Store | None = Relationship(back_populates="store_products")
 
-    product_id: UUID = Field(
-        foreign_key="products.id", nullable=False, index=True
-    )
+    product_id: UUID = Field(foreign_key="products.id", nullable=False, index=True)
     product: Product | None = Relationship(back_populates="store_products")
 
     external_sku: str
@@ -181,23 +174,13 @@ class StoreProduct(Base, table=True):
 
     price_entries: List["PriceEntry"] = Relationship(back_populates="store_product")
     plan_items: List["PlanItem"] = Relationship(back_populates="store_product")
-    chosen_for_matches: List["ItemMatch"] = Relationship(
-        back_populates="chosen_store_product",
-        sa_relationship_kwargs={
-            "foreign_keys": "ItemMatch.chosen_store_product_id"
-        },
-    )
-    candidate_rows: List["ItemMatchCandidate"] = Relationship(
-        back_populates="store_product"
-    )
+    chosen_for_matches: List["ItemMatch"] = Relationship(back_populates="store_product")
 
 
 class PriceEntry(Base, table=True):
     __tablename__ = "price_entries"
 
-    store_product_id: UUID = Field(
-        foreign_key="store_products.id", nullable=False, index=True
-    )
+    store_product_id: UUID = Field(foreign_key="store_products.id", nullable=False, index=True)
     store_product: StoreProduct | None = Relationship(back_populates="price_entries")
 
     currency_code: str = Field(default="USD", sa_column=Column(String(3)))
@@ -211,15 +194,7 @@ class PriceEntry(Base, table=True):
     is_current: bool = Field(default=True, nullable=False)
 
     plan_items: List["PlanItem"] = Relationship(back_populates="price_entry")
-    chosen_for_matches: List["ItemMatch"] = Relationship(
-        back_populates="chosen_price_entry",
-        sa_relationship_kwargs={
-            "foreign_keys": "ItemMatch.chosen_price_entry_id"
-        },
-    )
-    candidate_refs: List["ItemMatchCandidate"] = Relationship(
-        back_populates="price_entry"
-    )
+    chosen_for_matches: List["ItemMatch"] = Relationship(back_populates="price_entry")
 
 
 # Route Planning ---------------------------------------------------------------
@@ -228,32 +203,42 @@ class PriceEntry(Base, table=True):
 class RoutePlan(Base, table=True):
     __tablename__ = "route_plans"
 
-    list_id: UUID = Field(
-        foreign_key="shopping_lists.id", nullable=False, index=True
-    )
+    list_id: UUID = Field(foreign_key="shopping_lists.id", nullable=False, index=True)
     list: ShoppingList | None = Relationship(back_populates="route_plans")
 
-    client_token: str = Field(nullable=False, index=True)
+    client_id: str = Field(nullable=False, index=True)
     status: str = Field(default="draft", nullable=False)
-    opt_mode: OptimizationMode = Field(
-        default=OptimizationMode.BALANCED, nullable=False
-    )
+    opt_mode: OptimizationMode = Field(default=OptimizationMode.BALANCED, nullable=False)
     lowest_unit_price: bool = Field(default=False, nullable=False)
     max_stores: int = Field(default=3, nullable=False)
     user_geography: Geography = Field(
         default=None,
         sa_column=Column(Geography(geometry_type="POINT", srid=4326), nullable=True),
     )
-    total_price: float | None = Field(
-        default=None, sa_column=Column(Numeric(12, 2), nullable=True)
-    )
+    total_price: float | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
     total_distance_m: int | None = Field(default=None)
     total_travel_sec: int | None = Field(default=None)
 
-    selected_stores: List["PlanSelectedStore"] = Relationship(back_populates="plan")
-    item_matches: List["ItemMatch"] = Relationship(back_populates="plan")
-    store_visits: List["PlanStoreVisit"] = Relationship(back_populates="plan")
-    jobs: List["Job"] = Relationship(back_populates="plan")
+    selected_stores: List["PlanSelectedStore"] = Relationship(
+        back_populates="plan",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    item_matches: List["ItemMatch"] = Relationship(
+        back_populates="plan",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    match_candidates: List["ItemMatchCandidate"] = Relationship(
+        back_populates="plan",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    store_visits: List["PlanStoreVisit"] = Relationship(
+        back_populates="plan",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    jobs: List["Job"] = Relationship(
+        back_populates="plan",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class PlanSelectedStore(Base, table=True):
@@ -266,16 +251,11 @@ class PlanSelectedStore(Base, table=True):
         ),
     )
 
-    plan_id: UUID = Field(
-        foreign_key="route_plans.id", nullable=False, index=True
-    )
+    plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
     plan: RoutePlan | None = Relationship(back_populates="selected_stores")
 
-    store_id: UUID = Field(
-        foreign_key="stores.id", nullable=False, index=True
-    )
+    store_id: UUID = Field(foreign_key="stores.id", nullable=False, index=True)
     store: Store | None = Relationship(back_populates="plan_selected")
-
 
 
 class ItemMatch(Base, table=True):
@@ -289,71 +269,49 @@ class ItemMatch(Base, table=True):
         ),
     )
 
-    plan_id: UUID = Field(
-        foreign_key="route_plans.id", nullable=False, index=True
-    )
+    plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
     plan: RoutePlan | None = Relationship(back_populates="item_matches")
 
-    list_item_id: UUID = Field(
-        foreign_key="list_items.id", nullable=False, index=True
-    )
+    list_item_id: UUID = Field(foreign_key="list_items.id", nullable=False, index=True)
     list_item: ListItem | None = Relationship(back_populates="item_matches")
 
-    store_id: UUID = Field(
-        foreign_key="stores.id", nullable=False, index=True
-    )
+    store_id: UUID = Field(foreign_key="stores.id", nullable=False, index=True)
     store: Store | None = Relationship(back_populates="item_matches")
 
-    chosen_store_product_id: UUID | None = Field(
-        default=None, foreign_key="store_products.id", index=True
-    )
-    chosen_store_product: StoreProduct | None = Relationship(
-        back_populates="chosen_for_matches",
-        sa_relationship_kwargs={"foreign_keys": "ItemMatch.chosen_store_product_id"},
-    )
-    chosen_price_entry_id: UUID | None = Field(
-        default=None, foreign_key="price_entries.id", index=True
-    )
-    chosen_price_entry: PriceEntry | None = Relationship(
-        back_populates="chosen_for_matches",
-        sa_relationship_kwargs={"foreign_keys": "ItemMatch.chosen_price_entry_id"},
-    )
-    status: MatchStatus = Field(default=MatchStatus.PENDING, nullable=False)
-    notes: str | None = Field(default=None)
-    updated_by_user: bool = Field(default=False, nullable=False)
+    item_match_candidate_id: UUID = Field(foreign_key="item_match_candidates.id", nullable=False, index=True)
+    item_match_candidate: Optional["ItemMatchCandidate"] = Relationship(back_populates="chosen_for_matches")
 
-    candidates: List["ItemMatchCandidate"] = Relationship(back_populates="item_match")
+    store_product_id: UUID | None = Field(default=None, foreign_key="store_products.id", index=True)
+    store_product: StoreProduct | None = Relationship(back_populates="chosen_for_matches")
+
+    price_entry_id: UUID | None = Field(default=None, foreign_key="price_entries.id", index=True)
+    price_entry: PriceEntry | None = Relationship(back_populates="chosen_for_matches")
 
 
 class ItemMatchCandidate(Base, table=True):
     __tablename__ = "item_match_candidates"
     __table_args__ = (
         UniqueConstraint(
-            "item_match_id",
-            "rank",
-            name="uq_item_match_candidates_match_rank",
+            "plan_id",
+            "list_item_id",
+            "product_id",
+            name="uq_item_match_candidates_plan_item_product",
         ),
     )
 
-    item_match_id: UUID = Field(
-        foreign_key="item_matches.id", nullable=False, index=True
-    )
-    item_match: ItemMatch | None = Relationship(back_populates="candidates")
+    plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
+    plan: RoutePlan | None = Relationship(back_populates="match_candidates")
 
-    store_product_id: UUID = Field(
-        foreign_key="store_products.id", nullable=False, index=True
-    )
-    store_product: StoreProduct | None = Relationship(back_populates="candidate_rows")
+    list_item_id: UUID = Field(foreign_key="list_items.id", nullable=False, index=True)
+    list_item: ListItem | None = Relationship(back_populates="match_candidates")
 
-    price_entry_id: UUID | None = Field(
-        default=None, foreign_key="price_entries.id", index=True
-    )
-    price_entry: PriceEntry | None = Relationship(back_populates="candidate_refs")
+    product_id: UUID = Field(foreign_key="products.id", nullable=False, index=True)
+    product: Product | None = Relationship(back_populates="match_candidates")
 
-    rank: int
     score: float
     rejected_by_user: bool = Field(default=False, nullable=False)
 
+    chosen_for_matches: List["ItemMatch"] = Relationship(back_populates="item_match_candidate")
 
 
 class PlanStoreVisit(Base, table=True):
@@ -366,56 +324,41 @@ class PlanStoreVisit(Base, table=True):
         ),
     )
 
-    plan_id: UUID = Field(
-        foreign_key="route_plans.id", nullable=False, index=True
-    )
+    plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
     plan: RoutePlan | None = Relationship(back_populates="store_visits")
 
-    store_id: UUID = Field(
-        foreign_key="stores.id", nullable=False, index=True
-    )
+    store_id: UUID = Field(foreign_key="stores.id", nullable=False, index=True)
     store: Store | None = Relationship(back_populates="store_visits")
 
     sequence: int = Field(nullable=False)
     travel_sec_from_prev: int | None = Field(default=None)
     distance_m_from_prev: int | None = Field(default=None)
-    subtotal_price: float | None = Field(
-        default=None, sa_column=Column(Numeric(12, 2), nullable=True)
-    )
+    subtotal_price: float | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
 
-    plan_items: List["PlanItem"] = Relationship(back_populates="plan_store_visit")
+    plan_items: List["PlanItem"] = Relationship(
+        back_populates="plan_store_visit",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class PlanItem(Base, table=True):
     __tablename__ = "plan_items"
 
-    plan_store_visit_id: UUID = Field(
-        foreign_key="plan_store_visits.id", nullable=False, index=True
-    )
+    plan_store_visit_id: UUID = Field(foreign_key="plan_store_visits.id", nullable=False, index=True)
     plan_store_visit: PlanStoreVisit | None = Relationship(back_populates="plan_items")
 
-    list_item_id: UUID = Field(
-        foreign_key="list_items.id", nullable=False, index=True
-    )
+    list_item_id: UUID = Field(foreign_key="list_items.id", nullable=False, index=True)
     list_item: ListItem | None = Relationship(back_populates="plan_items")
 
-    store_product_id: UUID | None = Field(
-        default=None, foreign_key="store_products.id", index=True
-    )
+    store_product_id: UUID | None = Field(default=None, foreign_key="store_products.id", index=True)
     store_product: StoreProduct | None = Relationship(back_populates="plan_items")
 
-    price_entry_id: UUID | None = Field(
-        default=None, foreign_key="price_entries.id", index=True
-    )
+    price_entry_id: UUID | None = Field(default=None, foreign_key="price_entries.id", index=True)
     price_entry: PriceEntry | None = Relationship(back_populates="plan_items")
 
     qty: int = Field(default=1, nullable=False)
-    per_qty_price: float | None = Field(
-        default=None, sa_column=Column(Numeric(12, 2), nullable=True)
-    )
-    extended_price: float | None = Field(
-        default=None, sa_column=Column(Numeric(12, 2), nullable=True)
-    )
+    per_qty_price: float | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    extended_price: float | None = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
     is_checked: bool = Field(default=False, nullable=False)
     checked_at: datetime | None = Field(default=None)
 
@@ -433,9 +376,7 @@ class Job(Base, table=True):
         ),
     )
 
-    plan_id: UUID = Field(
-        foreign_key="route_plans.id", nullable=False, index=True
-    )
+    plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
     plan: RoutePlan | None = Relationship(back_populates="jobs")
 
     stage: JobStage = Field(default=JobStage.MATCH, nullable=False)

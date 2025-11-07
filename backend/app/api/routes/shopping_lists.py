@@ -1,4 +1,4 @@
-"""Shopping List endpoints."""
+"""Shopping list endpoints."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ from datetime import datetime, timezone
 from typing import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field
-from sqlmodel import Session, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import selectinload
+from sqlmodel import Session, select
 
 from backend.app.dependencies import get_db
-from backend.app.models import ShoppingList, ListItem
+from backend.app.models import ListItem, ShoppingList
 
 router = APIRouter()
 
@@ -20,16 +20,39 @@ router = APIRouter()
 class ShoppingListCreate(BaseModel):
     """Payload for creating a shopping list."""
 
+    model_config = ConfigDict(extra="forbid")
+
+    client_id: str
     title: str | None = None
 
 
-class ListItemPayload(BaseModel):
-    """API payload model for shopping list items."""
+class ShoppingListUpdate(BaseModel):
+    """Payload for updating a shopping list."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+
+
+class ShoppingListResponse(BaseModel):
+    """Response model for shopping list metadata."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID | None = None
-    list_id: UUID | None = None
+    id: UUID
+    client_id: str | None
+    title: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ListItemResponse(BaseModel):
+    """Response model for a list item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    list_id: UUID
     raw_text_qty: str | None = None
     raw_text_item: str | None = None
     item_name: str | None = None
@@ -40,161 +63,212 @@ class ListItemPayload(BaseModel):
     position: int
 
 
-class ShoppingListWithItemsResponse(BaseModel):
-    """Response model for shopping list with items."""
+class ListItemCreate(BaseModel):
+    """Payload for creating a list item."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(extra="forbid")
 
-    id: UUID
-    client_id: str | None
-    title: str | None
-    created_at: datetime
-    updated_at: datetime
-    list_items: list[ListItemPayload] = Field(default_factory=list)
-
-
-# User's Shopping Lists Endpoints -----------------------------------------------------
-#TODO: instead of going by /client_id, we should have an auth system and go by inferred user identity
-#Get all shopping lists for a given user by client_id
-@router.get("/shopping_lists/{client_id}", response_model=Sequence[ShoppingList], summary="Get a user's shopping list")
-async def get_shopping_lists_for_user(client_id: str, session: Session = Depends(get_db)) -> Sequence[ShoppingList]:
-    """Return all shopping lists for a given user."""
-
-    statement = select(ShoppingList).where(ShoppingList.client_id == client_id)
-    shopping_lists = session.exec(statement).all()
-    return shopping_lists
+    raw_text_qty: str | None = None
+    raw_text_item: str | None = None
+    item_name: str | None = None
+    qty_value: float | None = None
+    qty_unit: str | None = None
+    norm_qty_value: float | None = None
+    norm_qty_unit: str | None = None
+    position: int
 
 
-#Create a new shopping list for a certain user
-@router.post("/shopping_lists/{client_id}", response_model=ShoppingList, summary="Create a new shopping list")
-async def create_shopping_list_for_user(client_id: str, shopping_list: ShoppingListCreate, session: Session = Depends(get_db)) -> ShoppingList:
-    """Create a new shopping list for a given user."""
+class ListItemUpdate(BaseModel):
+    """Payload for updating a list item."""
 
-    new_shopping_list = ShoppingList(
-        client_id=client_id,
-        title=shopping_list.title,
-    )
-    session.add(new_shopping_list)
-    session.commit()
-    session.refresh(new_shopping_list)
-    return new_shopping_list
+    model_config = ConfigDict(extra="forbid")
+
+    raw_text_qty: str | None = None
+    raw_text_item: str | None = None
+    item_name: str | None = None
+    qty_value: float | None = None
+    qty_unit: str | None = None
+    norm_qty_value: float | None = None
+    norm_qty_unit: str | None = None
+    position: int | None = None
 
 
-
-# Individual Shopping List Endpoints ------------------------------------------------------
-
-#Get a shopping list and associated items by its id
-@router.get("/shopping_list/{shopping_list_id}", response_model=ShoppingListWithItemsResponse, summary="Get a shopping list")
-async def get_shopping_list_by_id(shopping_list_id: UUID, session: Session = Depends(get_db)) -> ShoppingListWithItemsResponse:
-    """Return a shopping list and it's items by its ID."""
-
-    statement = (
-        select(ShoppingList)
-        .where(ShoppingList.id == shopping_list_id)
-        .options(selectinload(ShoppingList.list_items))
-    )
-    shopping_list = session.exec(statement).first()
+def _get_shopping_list_or_404(session: Session, shopping_list_id: UUID) -> ShoppingList:
+    shopping_list = session.get(ShoppingList, shopping_list_id)
     if shopping_list is None:
-        raise HTTPException(status_code=404, detail="Shopping list not found")
-
-    # Sort list items by position
-    shopping_list.list_items.sort(key=lambda item: item.position)
-
-    return ShoppingListWithItemsResponse.model_validate(shopping_list)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shopping list not found")
+    return shopping_list
 
 
-#Update a shopping list and its associated items by its id
-@router.put("/shopping_list/{shopping_list_id}", response_model=ShoppingListWithItemsResponse, summary="Update a shopping list")
-async def update_shopping_list_by_id(shopping_list_id: UUID, updated_shopping_list: ShoppingListWithItemsResponse, session: Session = Depends(get_db)) -> ShoppingListWithItemsResponse:
-    """Update a shopping list and its items by its ID."""
+def _get_list_item_or_404(session: Session, shopping_list_id: UUID, item_id: UUID) -> ListItem:
+    item = session.get(ListItem, item_id)
+    if item is None or item.list_id != shopping_list_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List item not found")
+    return item
 
-    statement = (
-        select(ShoppingList)
-        .where(ShoppingList.id == shopping_list_id)
-        .options(selectinload(ShoppingList.list_items))
-    )
-    shopping_list = session.exec(statement).first()
-    if shopping_list is None:
-        raise HTTPException(status_code=404, detail="Shopping list not found")
 
-    # Update shopping list fields
-    shopping_list.title = updated_shopping_list.title
-    shopping_list.updated_at = datetime.now(timezone.utc)
+@router.get(
+    "/shopping-lists",
+    response_model=Sequence[ShoppingListResponse],
+    summary="List shopping lists",
+)
+def list_shopping_lists(
+    client_id: str | None = Query(default=None, description="Filter by client identifier"),
+    session: Session = Depends(get_db),
+) -> Sequence[ShoppingListResponse]:
+    statement = select(ShoppingList)
+    if client_id is not None:
+        statement = statement.where(ShoppingList.client_id == client_id)
+    statement = statement.order_by(ShoppingList.created_at.desc())
+    return session.exec(statement).all()
 
-    # Update list items
-    existing_items = {item.id: item for item in shopping_list.list_items}
-    updated_item_ids = {
-        item.id for item in updated_shopping_list.list_items if item.id is not None
-    }
 
-    # Delete removed items
-    for item in list(shopping_list.list_items):
-        if item.id not in updated_item_ids:
-            session.delete(item)
-
-    # Add or update items
-    for item_data in updated_shopping_list.list_items:
-        if item_data.id in existing_items:
-            # Update existing item
-            item = existing_items.get(item_data.id)
-            if item:
-                item.raw_text_qty = item_data.raw_text_qty
-                item.raw_text_item = item_data.raw_text_item
-                item.item_name = item_data.item_name
-                item.qty_value = item_data.qty_value
-                item.qty_unit = item_data.qty_unit
-                item.norm_qty_value = item_data.norm_qty_value
-                item.norm_qty_unit = item_data.norm_qty_unit
-                item.position = item_data.position
-        else:
-            # Add new item
-            new_item = ListItem(
-                list_id=item_data.list_id or shopping_list.id,
-                raw_text_qty=item_data.raw_text_qty,
-                raw_text_item=item_data.raw_text_item,
-                item_name=item_data.item_name,
-                qty_value=item_data.qty_value,
-                qty_unit=item_data.qty_unit,
-                norm_qty_value=item_data.norm_qty_value,
-                norm_qty_unit=item_data.norm_qty_unit,
-                position=item_data.position
-            )
-            session.add(new_item)
-
+@router.post(
+    "/shopping-lists",
+    response_model=ShoppingListResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a shopping list",
+)
+def create_shopping_list(
+    payload: ShoppingListCreate,
+    session: Session = Depends(get_db),
+) -> ShoppingListResponse:
+    shopping_list = ShoppingList(client_id=payload.client_id, title=payload.title)
+    session.add(shopping_list)
     session.commit()
     session.refresh(shopping_list)
-
-    # Reload list items with eager loading
-    statement = (
-        select(ShoppingList)
-        .where(ShoppingList.id == shopping_list.id)
-        .options(selectinload(ShoppingList.list_items))
-    )
-    updated_shopping_list = session.exec(statement).first()
-    if updated_shopping_list and updated_shopping_list.list_items:
-        updated_shopping_list.list_items.sort(key=lambda item: item.position)
-
-    return ShoppingListWithItemsResponse.model_validate(updated_shopping_list)
+    return ShoppingListResponse.model_validate(shopping_list)
 
 
-# Delete a shopping list and its items by its id
-@router.delete("/shopping_list/{shopping_list_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a shopping list")
-async def delete_shopping_list_by_id(shopping_list_id: UUID, session: Session = Depends(get_db)) -> Response:
-    """Delete a shopping list by its ID."""
+@router.get(
+    "/shopping-lists/{shopping_list_id}",
+    response_model=ShoppingListResponse,
+    summary="Get a shopping list",
+)
+def get_shopping_list(
+    shopping_list_id: UUID,
+    session: Session = Depends(get_db),
+) -> ShoppingListResponse:
+    shopping_list = _get_shopping_list_or_404(session, shopping_list_id)
+    return ShoppingListResponse.model_validate(shopping_list)
 
-    statement = (
+
+@router.patch(
+    "/shopping-lists/{shopping_list_id}",
+    response_model=ShoppingListResponse,
+    summary="Update a shopping list",
+)
+def update_shopping_list(
+    shopping_list_id: UUID,
+    payload: ShoppingListUpdate,
+    session: Session = Depends(get_db),
+) -> ShoppingListResponse:
+    shopping_list = _get_shopping_list_or_404(session, shopping_list_id)
+
+    update_fields = payload.model_dump(exclude_unset=True)
+    if "title" in update_fields:
+        shopping_list.title = update_fields["title"]
+    shopping_list.updated_at = datetime.now(timezone.utc)
+
+    session.add(shopping_list)
+    session.commit()
+    session.refresh(shopping_list)
+    return ShoppingListResponse.model_validate(shopping_list)
+
+
+@router.delete(
+    "/shopping-lists/{shopping_list_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a shopping list",
+)
+def delete_shopping_list(
+    shopping_list_id: UUID,
+    session: Session = Depends(get_db),
+) -> Response:
+    shopping_list = session.exec(
         select(ShoppingList)
         .where(ShoppingList.id == shopping_list_id)
-        .options(selectinload(ShoppingList.list_items))
-    )
-    shopping_list = session.exec(statement).first()
+        .options(
+            selectinload(ShoppingList.list_items),
+            selectinload(ShoppingList.route_plans),
+        )
+    ).first()
     if shopping_list is None:
-        raise HTTPException(status_code=404, detail="Shopping list not found")
-
-    # Delete all items associated with the shopping list
-    for item in shopping_list.list_items:
-        session.delete(item)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shopping list not found")
 
     session.delete(shopping_list)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/shopping-lists/{shopping_list_id}/items",
+    response_model=list[ListItemResponse],
+    summary="List items for a shopping list",
+)
+def list_items(
+    shopping_list_id: UUID,
+    session: Session = Depends(get_db),
+) -> list[ListItemResponse]:
+    _get_shopping_list_or_404(session, shopping_list_id)
+    items = session.exec(select(ListItem).where(ListItem.list_id == shopping_list_id).order_by(ListItem.position)).all()
+    return [ListItemResponse.model_validate(item) for item in items]
+
+
+@router.post(
+    "/shopping-lists/{shopping_list_id}/items",
+    response_model=ListItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a list item",
+)
+def create_item(
+    shopping_list_id: UUID,
+    payload: ListItemCreate,
+    session: Session = Depends(get_db),
+) -> ListItemResponse:
+    _get_shopping_list_or_404(session, shopping_list_id)
+
+    item = ListItem(list_id=shopping_list_id, **payload.model_dump())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return ListItemResponse.model_validate(item)
+
+
+@router.patch(
+    "/shopping-lists/{shopping_list_id}/items/{item_id}",
+    response_model=ListItemResponse,
+    summary="Update a list item",
+)
+def update_item(
+    shopping_list_id: UUID,
+    item_id: UUID,
+    payload: ListItemUpdate,
+    session: Session = Depends(get_db),
+) -> ListItemResponse:
+    item = _get_list_item_or_404(session, shopping_list_id, item_id)
+
+    update_fields = payload.model_dump(exclude_unset=True)
+    for field, value in update_fields.items():
+        setattr(item, field, value)
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return ListItemResponse.model_validate(item)
+
+
+@router.delete(
+    "/shopping-lists/{shopping_list_id}/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a list item",
+)
+def delete_item(
+    shopping_list_id: UUID,
+    item_id: UUID,
+    session: Session = Depends(get_db),
+) -> Response:
+    item = _get_list_item_or_404(session, shopping_list_id, item_id)
+    session.delete(item)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
