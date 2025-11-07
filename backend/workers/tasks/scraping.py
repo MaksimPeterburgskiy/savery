@@ -4,50 +4,16 @@ from __future__ import annotations
 import timezonefinder
 import json
 from celery import shared_task
+from celery.utils.log import get_task_logger
 
 from geoalchemy2 import Geography
-from uuid import UUID, uuid4
 from playwright.sync_api import sync_playwright
 from backend.app.db import session_scope
 from backend.app.models import Store, StoreChain
 
 
-#hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
-hannaford_states = ["NH"]
+hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
 price_chopper_states = ["NY", "VT", "MA", "CT", "PA", "NH"]
-# class Store:
-#     id: str
-#     name: str
-#     address_line_1: str
-#     address_line_2: str
-#     phone: str
-#     city: str
-#     region: str
-#     zip_code: str
-#     latitude: float
-#     longitude: float
-#     timezone: str
-#     hours : json
-
-#     def __init__(self, id: str, name: str, address_line_1: str, address_line_2: str, phone: str, country_code: str, city: str, region: str, zip_code: str,
-#                  latitude: float, longitude: float, timezone: str, hours: json) -> None:
-#         self.id = id
-#         self.name = name
-#         self.address_line_1 = address_line_1
-#         self.address_line_2 = address_line_2
-#         self.phone = phone
-#         self.city = city
-#         self.region = region
-#         self.country_code = country_code
-#         self.zip_code = zip_code
-#         self.latitude = latitude
-#         self.longitude = longitude
-#         self.timezone = timezone
-#         self.hours = hours
-
-
-#     def __str__(self) -> str:
-#         return f"Store(id = {self.id}, name = {self.name}, address_line_1 = {self.address_line_1}, address_line_2 = {self.address_line_2}, phone = {self.phone}, country = {self.country_code}, city = {self.city}, region = {self.region}, zip_code = {self.zip_code}, latitude = {self.latitude}, longitude = {self.longitude}, timezone = {self.timezone}, hours = {self.hours})"
 
 class StoreProduct:
     brand = str
@@ -56,10 +22,13 @@ class StoreProduct:
     weight = str
     price = float
 
+# module-level task logger
+logger = get_task_logger(__name__)
 
 
-@shared_task(name="workers.scraping.scrape_hannaford_stores")
-def scrape_hannaford() -> None:
+
+@shared_task(bind=True, name="workers.scraping.scrape_hannaford_stores")
+def scrape_hannaford(self=None, *args, **kwargs) -> None:
 
     stores = []
     with sync_playwright() as p:
@@ -104,10 +73,43 @@ def scrape_hannaford() -> None:
                     store = get_store_data_hannaford(page, f"https://stores.hannaford.com/{city_url}", city_name, hannaford_state)
 
                     stores.append(store)
-                if (len(stores) > 10):
-                    break
+                if len(stores) == 10:
+                    with session_scope() as session:
+                        #add hannaford store chain if it doesn't exist
+                        chain = StoreChain(
+                            name="Hannaford",
+                        )
+                        statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+                        existing_chain = session.exec(statement).scalars().first()
+                        if existing_chain is None:
+                            session.add(chain)
+                            session.commit()
+                        #get the id of the chain
+                        statement = session.query(StoreChain).filter(StoreChain.name == "Hannaford")
+                        existing_chain = session.exec(statement).scalars().first()
+                        
+                        for store in stores:
+                            store.chain_id = existing_chain.id
+                            session.add(store)
+                        session.commit()
+                    return stores
         context.close()
         browser.close()
+        
+        with session_scope() as session:
+            #add hannaford store chain if it doesn't exist
+            chain = StoreChain(
+                name="Hannaford",
+            )
+            statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+            existing_chain = session.exec(statement).scalars().first()
+            if existing_chain is None:
+                session.add(chain)
+                session.commit()
+            for store in stores:
+                store.chain_id = existing_chain.id
+                session.add(store)
+            session.commit()
         return stores
 
 
@@ -132,18 +134,15 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
     hours = hours_whole_json.get("hours")    
     store = Store(
-        id=uuid4(),
         chain_id=None,
         name=name,
-
+        external_ref=number,
         number=number,
         address_line1=address_line_1,
         city=city_name,
         region=hannaford_state,
         postal_code=zip_code,
         country_code="US",
-        latitude=latitude,
-        longitude=longitude,
         timezone=timezone,
         hours_json=hours,
         phone=phone,
@@ -249,6 +248,12 @@ def add_stores_to_db(stores: list[Store]) -> None:
         session.commit()
 
 
+
+@shared_task(bind=True, name="workers.scraping.test_celery")
+def test_celery(self) -> str:
+    # Log a message that includes the Celery-assigned task id for traceability
+    logger.info("test_celery task executed (task_id=%s)", getattr(self.request, "id", None))
+    return "Celery is working!"
 
 if __name__ == "__main__":
    stores_ = scrape_hannaford()
