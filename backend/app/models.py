@@ -385,6 +385,8 @@ class Job(Base, table=True):
     progress_total: int | None = Field(default=None)
     task_id: str | None = Field(default=None, index=True)
     message: str | None = Field(default=None)
+    started_at: datetime | None = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
 
 
 # Table-level indexes and constraints -----------------------------------------

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,6 +31,8 @@ class JobStatusResponse(BaseModel):
     progress_total: int | None = None
     task_id: str | None = None
     message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class DemoTaskRequest(BaseModel):

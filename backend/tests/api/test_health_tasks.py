@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import time
 from collections.abc import Iterator
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -90,6 +92,7 @@ def test_trigger_demo_task_returns_job_payload(
     assert payload["status"] == "SUCCESS"
     assert payload["progress_current"] == 100
     assert payload["progress_total"] == 100
+    _assert_job_timestamps(payload)
 
 
 def test_get_demo_task_status_returns_current_state(
@@ -106,6 +109,7 @@ def test_get_demo_task_status_returns_current_state(
     assert payload["status"] == "SUCCESS"
     assert payload["progress_current"] == 100
     assert payload["message"] == "Health demo task finished"
+    _assert_job_timestamps(payload)
 
 
 def _wait_for_completion(client: TestClient, job_id: UUID, *, timeout: float = 5.0) -> dict:
@@ -121,3 +125,16 @@ def _wait_for_completion(client: TestClient, job_id: UUID, *, timeout: float = 5
         if time.monotonic() > deadline:
             raise AssertionError(f"Job {job_id} did not complete within {timeout} seconds")
         time.sleep(0.1)
+
+
+def _assert_job_timestamps(payload: dict[str, Any]) -> None:
+    """Verify the demo job reports both timestamps and that they increase monotonically."""
+
+    started_value = payload.get("started_at")
+    completed_value = payload.get("completed_at")
+    assert started_value is not None, "Job payload should include a started_at timestamp"
+    assert completed_value is not None, "Job payload should include a completed_at timestamp"
+
+    started_at = datetime.fromisoformat(started_value)
+    completed_at = datetime.fromisoformat(completed_value)
+    assert started_at <= completed_at, "started_at must not be after completed_at"
