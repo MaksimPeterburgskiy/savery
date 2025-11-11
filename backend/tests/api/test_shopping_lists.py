@@ -326,7 +326,7 @@ def test_create_item_for_nonexistent_list_returns_404(client: TestClient) -> Non
 
 
 def test_update_list_item(client: TestClient) -> None:
-    """Test updating a list item."""
+    """Test updating a list item's mutable fields."""
     client_id = f"test-client-{uuid4()}"
     shopping_list_id: UUID | None = None
     item_id: UUID | None = None
@@ -349,19 +349,61 @@ def test_update_list_item(client: TestClient) -> None:
 
         response = client.patch(
             f"/api/shopping-lists/{shopping_list_id}/items/{item_id}",
-            json={"item_name": "Updated", "position": 2},
+            json={"position": 2, "raw_text_item": "two apples"},
         )
 
         assert response.status_code == 200
         body = response.json()
-        assert body["item_name"] == "Updated"
+        assert body["item_name"] == "Original"
         assert body["position"] == 2
+        assert body["raw_text_item"] == "two apples"
 
         with session_scope() as session:
             stored_item = session.get(ListItem, item_id)
             assert stored_item is not None
-            assert stored_item.item_name == "Updated"
             assert stored_item.position == 2
+            assert stored_item.item_name == "Original"
+            assert stored_item.raw_text_item == "two apples"
+    finally:
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
+def test_update_list_item_rejects_readonly_fields(client: TestClient) -> None:
+    """Test that derived fields cannot be updated through the API."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+    item_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+            item = ListItem(
+                list_id=shopping_list.id,
+                item_name="Original",
+                qty_value=1.0,
+                position=1,
+            )
+            session.add(item)
+            session.flush()
+            item_id = item.id
+
+        response = client.patch(
+            f"/api/shopping-lists/{shopping_list_id}/items/{item_id}",
+            json={
+                "item_name": "Updated",
+                "qty_value": 3,
+                "qty_unit": "each",
+                "norm_qty_value": 3,
+                "norm_qty_unit": "ea",
+            },
+        )
+
+        assert response.status_code == 422
     finally:
         if shopping_list_id:
             cleanup_shopping_list(shopping_list_id)
@@ -382,7 +424,7 @@ def test_update_nonexistent_item_returns_404(client: TestClient) -> None:
         nonexistent_item_id = uuid4()
         response = client.patch(
             f"/api/shopping-lists/{shopping_list_id}/items/{nonexistent_item_id}",
-            json={"item_name": "Updated"},
+            json={"position": 2},
         )
         assert response.status_code == 404
     finally:
@@ -415,7 +457,7 @@ def test_update_item_from_different_list_returns_404(client: TestClient) -> None
         # Try to update item using wrong list ID
         response = client.patch(
             f"/api/shopping-lists/{list_id_2}/items/{item_id}",
-            json={"item_name": "Updated"},
+            json={"position": 2},
         )
         assert response.status_code == 404
     finally:

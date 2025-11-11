@@ -85,11 +85,6 @@ class ListItemUpdate(BaseModel):
 
     raw_text_qty: str | None = None
     raw_text_item: str | None = None
-    item_name: str | None = None
-    qty_value: float | None = None
-    qty_unit: str | None = None
-    norm_qty_value: float | None = None
-    norm_qty_unit: str | None = None
     position: int | None = None
 
 
