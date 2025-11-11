@@ -31,7 +31,7 @@ class TestItemParser:
         """Test parsing item with count only."""
         result = self.parser.parse("3 bananas")
         
-        assert result.name == "bananas"
+        assert result.name == "banana"
         assert result.quantity == 3.0
         assert result.unit == "count"
     
@@ -80,14 +80,39 @@ class TestItemParser:
         assert len(results) == 4
         assert results[0].name == "ground beef"
         assert results[1].name == "milk"
-        assert results[2].name == "tomatoes"
+        assert results[2].name == "tomato"
         assert results[3].name == "bread"
     
     def test_empty_item(self):
         """Test parsing empty item."""
         result = self.parser.parse("")
-        assert result.name == ""
+        assert result.name is None
         assert "Empty item text" in (result.notes or "")
+
+    def test_canonical_name_strips_punctuation(self):
+        """Canonical item name removes punctuation and casing noise."""
+        result = self.parser.parse(raw_text_item="Boneless, Skinless Chicken Thighs")
+        assert result.name == "boneless skinless chicken thigh"
+
+    def test_canonical_name_removes_number_words(self):
+        """Spelled-out quantities are removed from canonical name."""
+        result = self.parser.parse(raw_text_item="Two Apples")
+        assert result.name == "apple"
+
+    @pytest.mark.parametrize(
+        ("raw_text", "expected"),
+        [
+            ("Knives", "knife"),
+            ("Wives", "wife"),
+            ("Cacti", "cactus"),
+            ("Indices", "index"),
+            ("Dice", "die"),
+        ],
+    )
+    def test_canonical_name_handles_irregular_plurals(self, raw_text, expected):
+        """Difficult irregular plurals reduce to their singular canonical form."""
+        result = self.parser.parse(raw_text_item=raw_text)
+        assert result.name == expected
 
 
 

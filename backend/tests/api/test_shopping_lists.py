@@ -293,24 +293,109 @@ def test_create_item_for_shopping_list(client: TestClient) -> None:
             f"/api/shopping-lists/{shopping_list_id}/items",
             json={
                 "raw_text_qty": "2",
-                "raw_text_item": "Two Apples",
+                "raw_text_item": "Apples",
                 "position": 1,
             },
         )
 
         assert response.status_code == 201
         body = response.json()
-        assert body["raw_text_item"] == "Two Apples"
+        assert body["raw_text_item"] == "Apples"
         assert body["raw_text_qty"] == "2"
-        assert body["item_name"] is None
+        assert body["item_name"] == "apple"
         assert body["position"] == 1
 
         with session_scope() as session:
             items = session.exec(select(ListItem).where(ListItem.list_id == shopping_list_id)).all()
             assert len(items) == 1
-            assert items[0].raw_text_item == "Two Apples"
+            assert items[0].raw_text_item == "Apples"
             assert items[0].raw_text_qty == "2"
-            assert items[0].item_name is None
+            assert items[0].item_name == "apple"
+    finally:
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
+def test_create_item_parses_qty_and_item_fields(client: TestClient) -> None:
+    """Item name excludes quantity/unit and quantities are normalized."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/items",
+            json={
+                "raw_text_qty": "2 lbs",
+                "raw_text_item": "Boneless Skinless Chicken Thighs",
+                "position": 1,
+            },
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["raw_text_qty"] == "2 lbs"
+        assert body["raw_text_item"] == "Boneless Skinless Chicken Thighs"
+        assert body["item_name"] == "boneless skinless chicken thigh"
+        assert body["qty_value"] == pytest.approx(2.0)
+        assert body["qty_unit"] == "lbs"
+        assert body["norm_qty_unit"] == "g"
+        assert body["norm_qty_value"] == pytest.approx(907.185, rel=1e-3)
+
+        with session_scope() as session:
+            stored = session.exec(select(ListItem).where(ListItem.list_id == shopping_list_id)).first()
+            assert stored is not None
+            assert stored.raw_text_qty == "2 lbs"
+            assert stored.raw_text_item == "Boneless Skinless Chicken Thighs"
+            assert stored.item_name == "boneless skinless chicken thigh"
+            assert stored.qty_value == pytest.approx(2.0)
+            assert stored.qty_unit == "lbs"
+            assert stored.norm_qty_unit == "g"
+            assert stored.norm_qty_value == pytest.approx(907.185, rel=1e-3)
+    finally:
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
+def test_create_item_defaults_unit_to_count(client: TestClient) -> None:
+    """If no unit is provided, default to count."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/items",
+            json={
+                "raw_text_qty": "3",
+                "raw_text_item": "Limes",
+                "position": 1,
+            },
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["item_name"] == "lime"
+        assert body["qty_value"] == pytest.approx(3.0)
+        assert body["qty_unit"] == "count"
+        assert body["norm_qty_value"] == pytest.approx(3.0)
+        assert body["norm_qty_unit"] == "count"
+
+        with session_scope() as session:
+            stored = session.exec(select(ListItem).where(ListItem.list_id == shopping_list_id)).first()
+            assert stored is not None
+            assert stored.qty_unit == "count"
+            assert stored.norm_qty_unit == "count"
     finally:
         if shopping_list_id:
             cleanup_shopping_list(shopping_list_id)
@@ -381,21 +466,21 @@ def test_update_list_item(client: TestClient) -> None:
 
         response = client.patch(
             f"/api/shopping-lists/{shopping_list_id}/items/{item_id}",
-            json={"position": 2, "raw_text_item": "two apples"},
+            json={"position": 2, "raw_text_item": "Apples"},
         )
 
         assert response.status_code == 200
         body = response.json()
-        assert body["item_name"] == "Original"
+        assert body["item_name"] == "apple"
         assert body["position"] == 2
-        assert body["raw_text_item"] == "two apples"
+        assert body["raw_text_item"] == "Apples"
 
         with session_scope() as session:
             stored_item = session.get(ListItem, item_id)
             assert stored_item is not None
             assert stored_item.position == 2
-            assert stored_item.item_name == "Original"
-            assert stored_item.raw_text_item == "two apples"
+            assert stored_item.item_name == "apple"
+            assert stored_item.raw_text_item == "Apples"
     finally:
         if shopping_list_id:
             cleanup_shopping_list(shopping_list_id)

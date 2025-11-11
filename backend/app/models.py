@@ -92,7 +92,7 @@ class ListItem(Base, table=True):
     raw_text_item: str | None = Field(default=None)
     """Raw item description. (e.g., "Boneless Skinless Chicken Thighs")."""
     item_name: str | None = Field(default=None)
-    """Canonically Normalized item name (e.g., "chicken thighs boneless skinless")."""
+    """Canonically Normalized item name (e.g., "chicken thigh boneless skinless")."""
     qty_value: float | None = Field(default=None)
     """Numeric portion of the raw quantity."""
     qty_unit: str | None = Field(default=None)

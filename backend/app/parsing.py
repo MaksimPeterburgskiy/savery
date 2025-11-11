@@ -1,70 +1,123 @@
-"""Item matching pipeline tasks."""
+"""Item parsing helpers for shopping list ingestion."""
 
 from __future__ import annotations
 
-from typing import Any
-from dataclasses import dataclass
 import re
+import sys
+import unicodedata
+from typing import Iterable
 
-import pint 
+from dataclasses import dataclass
+
+import inflect
+import pint
 from pint import UnitRegistry
+
+from .parsing_dicts import (
+    ALL_UNITS,
+    COUNT_UNITS,
+    FLUID_UNITS,
+    IRREGULAR_PLURALS,
+    NUMBER_WORDS,
+    STOP_WORDS,
+    UNIT_MAPPING,
+    WEIGHT_UNITS,
+)
 
 
 ureg = UnitRegistry()
+_inflector = inflect.engine()
 
 # Define custom count-based units
 ureg.define("bunch = 1 * count")
-ureg.define("head = 1 * count") 
+ureg.define("head = 1 * count")
 ureg.define("package = 1 * count")
 ureg.define("pkg = 1 * package")
 ureg.define("bag = 1 * count")
+ureg.define("bags = 1 * bag")
 ureg.define("box = 1 * count")
+ureg.define("boxes = 1 * box")
 ureg.define("can = 1 * count")
+ureg.define("cans = 1 * can")
 ureg.define("jar = 1 * count")
+ureg.define("jars = 1 * jar")
 ureg.define("bottle = 1 * count")
+ureg.define("bottles = 1 * bottle")
 ureg.define("loaf = 1 * count")
+ureg.define("loaves = 1 * loaf")
 ureg.define("dozen = 12 * count")
+ureg.define("pack = 1 * count")
+ureg.define("packs = 1 * pack")
 
 
-FLUID_UNITS = ["L", "liter", "liters", "l", "ml", "milliliter", "fl_oz", "fluid_ounce", "cup", "cups", "tablespoon", "tablespoons", "tbsp", "teaspoon", "teaspoons", "tsp", "quart", "quarts", "pint", "pints", "gallon", "gallons"]
-WEIGHT_UNITS = ["lbs", "lb", "pound", "pounds", "oz", "ounce", "ounces", "kg", "kilogram", "g", "gram", "grams"]
-@dataclass
+TOKEN_SPLIT_PATTERN = re.compile(r"\s+")
+NON_ALPHANUM = re.compile(r"[^a-z0-9\s]")
+
+
+@dataclass(slots=True)
 class ParsedItem:
+    """Structured representation of a parsed shopping list entry."""
+
     original_text: str
-    name: str
+    name: str | None
     quantity: float | None
     unit: str | None
-    notes: str | None
     normalized_quantity: float | None
     normalized_unit: str | None
+    notes: str | None = None
 
 
-    __print__ = lambda self: f"ParsedItem(name={self.name}, quantity={self.quantity}, unit={self.unit})\nNormalized(quantity={self.normalized_quantity}, unit={self.normalized_unit})\nNotes={self.notes}"
+def canonicalize_item_name(value: str | None) -> str | None:
+    """Produce a lowercased, punctuation-free canonical item name."""
+
+    if value is None:
+        return None
+    normalized = unicodedata.normalize("NFKD", value)
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    normalized = normalized.lower()
+    normalized = normalized.replace("&", " and ")
+    normalized = NON_ALPHANUM.sub(" ", normalized)
+    tokens: list[str] = []
+    for token in normalized.split():
+        if not token:
+            continue
+        if token.isdigit():
+            continue
+        if token in STOP_WORDS or token in NUMBER_WORDS or token in ALL_UNITS:
+            continue
+        tokens.append(_singularize_token(token))
+
+    if not tokens:
+        return None
+    return sys.intern(" ".join(tokens))
+
 
 class ItemParser:
-    UNITS = {
-        "bunch", "head", "package", "pkg", "bag", "bags", "box", "boxes", "can", "cans",
-        "jar", "jars","bottle", "bottles", "loaf", "loaves", "dozen", "count", "lb", "lbs","pound", "pounds", "oz", "ounce", "fl_oz",
-        "fluid_ounce", "kg", "kilogram", "g", "gram","grams", "L", "liter", "ml",
-        "milliliter", "clove", "cloves", "slice", "slices", "piece", "pieces", "stick", "sticks",
-        "cup", "cups", "tablespoon", "tablespoons", "tbsp", "teaspoon", "teaspoons", "tsp",
-        "quart", "quarts", "pint", "pints", "gallon", "gallons", "l"
-    }
+    """Parse raw shopping list text into canonicalized structures."""
 
-    WORDS_TO_IGNORE = {"of"}
-
-    def __init__(self):
+    def __init__(self) -> None:
         self.ureg = ureg
 
-    def parse(self, text: str) -> ParsedItem:
-        '''Parse an ingredient text into its components: name, quantity, unit, and notes.'''
-        quantity = None
-        unit = None
-        text = text.strip()
-        if not text:
+    def parse(
+        self,
+        text: str | None = None,
+        *,
+        raw_text_item: str | None = None,
+        raw_text_qty: str | None = None,
+    ) -> ParsedItem:
+        """Parse text into canonical item components."""
+
+        if raw_text_item is None and text is not None:
+            raw_text_item = text
+
+        combined_parts = [part.strip() for part in (raw_text_qty, raw_text_item) if part]
+        combined_text = " ".join(combined_parts).strip()
+        notes: list[str] = []
+
+        if not combined_text:
             return ParsedItem(
-                original_text=text,
-                name="",
+                original_text="",
+                name=None,
                 quantity=None,
                 unit=None,
                 normalized_quantity=None,
@@ -72,137 +125,160 @@ class ItemParser:
                 notes="Empty item text.",
             )
 
-        #Find quantity and unit 
-        #search for number
-        #once we find a number check if the next or previous word is in UNITS
-        split_text = re.split(r'\s+', text)
-        unit_index = -1
-        original_unit = None
-        quantity_index = -1
-        for i, word in enumerate(split_text):
-            try:
-                quantity = float(word)
-                quantity_index = i
-                #check next word
-                if i + 1 < len(split_text) and split_text[i + 1].lower() in self.UNITS:
-                    unit = split_text[i + 1].lower()
-                    original_unit = split_text[i + 1]
-                    unit_index = i + 1
-                    break
-                #check previous word
-                elif i - 1 >= 0 and split_text[i - 1].lower() in self.UNITS:
-                    unit = split_text[i - 1].lower()
-                    original_unit = split_text[i - 1]
-                    unit_index = i - 1
-                    break
-                else:
-                    unit = "count"  # Default to count if no unit found
-                    break
-            except ValueError:
-                continue
-        else:
-            quantity = None
-            unit = None
-            notes = "No quantity detected."
+        tokens = [token for token in TOKEN_SPLIT_PATTERN.split(combined_text) if token]
+        quantity, unit, removal_indexes = self._extract_quantity_and_unit(tokens)
+        if quantity is None and unit is None:
+            notes.append("No quantity detected.")
 
+        if unit is None and quantity is not None:
+            unit = "count"
 
+        candidate_tokens = [token for idx, token in enumerate(tokens) if idx not in removal_indexes]
+        if not candidate_tokens and raw_text_item:
+            candidate_tokens = [token for token in TOKEN_SPLIT_PATTERN.split(raw_text_item) if token]
+        candidate_name_text = " ".join(candidate_tokens)
+        canonical_name = canonicalize_item_name(candidate_name_text)
 
-
-        if quantity is not None:
-            if str(float(quantity)) in split_text:
-                split_text.remove(str(float(quantity)))
-            elif str(int(quantity)) in split_text:
-                split_text.remove(str(int(quantity)))
-
-        if unit is not None:    
-            if original_unit in split_text:
-                split_text.remove(original_unit)
-
-        name = " ".join([w for w in split_text])
-        item =  ParsedItem(
-            original_text=text,
-            name=name.strip(),
-            quantity=quantity if 'quantity' in locals() else None,
-            unit=unit if 'unit' in locals() else None,
-            normalized_quantity=quantity if 'quantity' in locals() else None,
-            normalized_unit=unit if 'unit' in locals() else None,
-            notes=notes if 'notes' in locals() else None,
+        normalized_quantity, normalized_unit = self._normalize_quantity(quantity, unit)
+        parsed = ParsedItem(
+            original_text=combined_text,
+            name=canonical_name,
+            quantity=quantity,
+            unit=unit.lower() if unit else None,
+            normalized_quantity=normalized_quantity,
+            normalized_unit=normalized_unit,
+            notes=" ".join(notes) if notes else None,
         )
-        print(item)
-        return self.convert_to_normalized_units(item)
-    
+        return parsed
 
-    
-    def convert_to_normalized_units(self, item: ParsedItem) -> ParsedItem:
-        '''Convert the item's quantity and unit to normalized forms (grams for weight, milliliters for volume).'''
-        if item.unit is None or item.quantity is None:
-            return item
-        print("Converting:", item)
-        # Map our unit names to pint-compatible unit names
-        UNIT_MAPPING = {
-            "lbs": "pound", "lb": "pound", "pound": "pound", "pounds": "pound",
-            "oz": "ounce", "ounce": "ounce", "ounces": "ounce",
-            "kg": "kilogram", "kilogram": "kilogram", 
-            "g": "gram", "gram": "gram", "grams": "gram",
-            "L": "liter", "liter": "liter", "liters": "liter", "l": "liter",
-            "ml": "milliliter", "milliliter": "milliliter",
-            "fl_oz": "fluid_ounce", "fluid_ounce": "fluid_ounce",
-            "cup": "cup", "cups": "cup",
-            "tablespoon": "tablespoon", "tablespoons": "tablespoon", "tbsp": "tablespoon",
-            "teaspoon": "teaspoon", "teaspoons": "teaspoon", "tsp": "teaspoon",
-            "quart": "quart", "quarts": "quart",
-            "pint": "pint", "pints": "pint", 
-            "gallon": "gallon", "gallons": "gallon",
-        }
-        
-        
-        if item.unit in WEIGHT_UNITS:
-            item.normalized_unit = "g"
-        elif item.unit in FLUID_UNITS:
-            item.normalized_unit = "ml"
-        elif item.unit in ["bunch", "head", "package", "pkg", "bag", "bags", "box", "boxes", "can", "cans",
-                           "jar", "jars","bottle", "bottles", "loaf", "loaves", "dozen", "count"]:    
-            item.normalized_unit = "count"
+    def parse_list(self, items: Iterable[str]) -> list[ParsedItem]:
+        """Parse a list of raw item strings."""
+
+        return [self.parse(text=item) for item in items]
+
+    def _extract_quantity_and_unit(self, tokens: list[str]) -> tuple[float | None, str | None, set[int]]:
+        quantity = None
+        unit = None
+        quantity_index = None
+        unit_index = None
+
+        for index, token in enumerate(tokens):
+            numeric_value = self._parse_number(token)
+            if numeric_value is None:
+                continue
+            quantity = numeric_value
+            quantity_index = index
+
+            next_unit = self._sanitize_unit(tokens[index + 1]) if index + 1 < len(tokens) else None
+            prev_unit = self._sanitize_unit(tokens[index - 1]) if index - 1 >= 0 else None
+
+            if next_unit in self._known_units():
+                unit = next_unit
+                unit_index = index + 1
+            elif prev_unit in self._known_units():
+                unit = prev_unit
+                unit_index = index - 1
+            break
+
+        removal_indexes: set[int] = set()
+        if quantity_index is not None:
+            removal_indexes.add(quantity_index)
+        if unit_index is not None:
+            removal_indexes.add(unit_index)
+        return quantity, unit, removal_indexes
+
+    def _normalize_quantity(self, quantity: float | None, unit: str | None) -> tuple[float | None, str | None]:
+        if quantity is None or unit is None:
+            return quantity, unit
+
+        unit_lower = unit.lower()
+
+        if unit_lower in WEIGHT_UNITS:
+            normalized_unit = "g"
+        elif unit_lower in FLUID_UNITS:
+            normalized_unit = "ml"
+        elif unit_lower in COUNT_UNITS:
+            return quantity, "count"
         else:
-            # For count-based units or unknown units, keep as-is
-            item.normalized_unit = item.unit
-            item.normalized_quantity = item.quantity
-            return item
-            
+            return quantity, unit_lower
+
+        pint_unit = UNIT_MAPPING.get(unit_lower)
+        if not pint_unit:
+            return quantity, normalized_unit
+
         try:
-            # Convert using pint if we have a mappable unit
-            pint_unit = UNIT_MAPPING.get(item.unit)
-            if pint_unit:
-                quantity_with_unit = self.ureg.Quantity(item.quantity, pint_unit)
-                
-                # Convert to normalized unit
-                if item.normalized_unit == "g":
-                    normalized_quantity = quantity_with_unit.to("gram").magnitude
-                elif item.normalized_unit == "ml":
-                    normalized_quantity = quantity_with_unit.to("milliliter").magnitude
-                else:
-                    normalized_quantity = item.quantity
-                    
-                item.normalized_quantity = normalized_quantity
-            else:
-                # If no mapping found, keep original values
-                item.normalized_quantity = item.quantity
-                item.normalized_unit = item.unit
-                
-        except Exception as e:
-            # If conversion fails, keep original values
-            item.normalized_quantity = item.quantity
-            item.normalized_unit = item.unit
-            if item.notes:
-                item.notes += f" Conversion error: {str(e)}"
-            else:
-                item.notes = f"Conversion error: {str(e)}"
-        
-        #round the normalized quantity to 3 decimal places
-        item.normalized_quantity = round(item.normalized_quantity, 3)
-        return item
-    
-    
-    def parse_list(self, items: list[str]) -> list[ParsedItem]:
-        '''Parse a list of items.'''
-        return [self.parse(item) for item in items]
+            quantity_with_unit = self.ureg.Quantity(quantity, pint_unit)
+            target_unit = "gram" if normalized_unit == "g" else "milliliter"
+            normalized_quantity = quantity_with_unit.to(target_unit).magnitude
+        except (pint.errors.DimensionalityError, pint.errors.UndefinedUnitError):
+            return quantity, unit_lower
+
+        return round(normalized_quantity, 3), normalized_unit
+
+    @staticmethod
+    def _parse_number(token: str) -> float | None:
+        cleaned = token.replace(",", "").strip()
+        if not cleaned:
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            pass
+        if "/" in cleaned:
+            try:
+                numerator, denominator = cleaned.split("/", 1)
+                return float(numerator) / float(denominator)
+            except ValueError:
+                return None
+        return None
+
+    def _sanitize_unit(self, token: str | None) -> str | None:
+        if token is None:
+            return None
+        lowered = NON_ALPHANUM.sub("", token.lower())
+        return lowered or None
+
+    @staticmethod
+    def _known_units() -> set[str]:
+        return ALL_UNITS
+
+
+def _singularize_token(token: str) -> str:
+    """Convert plural nouns to singular form."""
+
+    token_lower = token.lower()
+    irregular = IRREGULAR_PLURALS.get(token_lower)
+    if irregular:
+        return irregular
+
+    if _looks_plural(token_lower):
+        library_result = _inflector.singular_noun(token_lower)
+        if library_result:
+            return library_result
+
+    if len(token_lower) > 3:
+        if token_lower.endswith("ies"):
+            return token_lower[:-3] + "y"
+        if token_lower.endswith("ves"):
+            if token_lower.endswith(("lves", "rves")):
+                return token_lower[:-3] + "f"
+            return token_lower[:-3] + "fe"
+        if token_lower.endswith("men"):
+            return token_lower[:-3] + "man"
+        if token_lower.endswith(("ses", "xes", "zes", "ches", "shes", "oes")):
+            return token_lower[:-2]
+        if token_lower.endswith("s") and not token_lower.endswith("ss"):
+            return token_lower[:-1]
+
+    return token_lower
+
+
+def _looks_plural(token: str) -> bool:
+    """Decide whether a token is probably plural."""
+
+    complex_suffixes = ("ies", "ves", "men", "xes", "zes", "ches", "shes", "oes", "ses")
+    if token.endswith(complex_suffixes):
+        return True
+    if token.endswith("s") and not token.endswith(("ss", "us", "is")):
+        return True
+    return False

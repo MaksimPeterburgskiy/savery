@@ -13,8 +13,10 @@ from sqlmodel import Session, select
 
 from backend.app.dependencies import get_db
 from backend.app.models import ListItem, ShoppingList
+from backend.app.parsing import ItemParser, ParsedItem
 
 router = APIRouter()
+item_parser = ItemParser()
 
 
 class ShoppingListCreate(BaseModel):
@@ -95,6 +97,15 @@ def _get_list_item_or_404(session: Session, shopping_list_id: UUID, item_id: UUI
     if item is None or item.list_id != shopping_list_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List item not found")
     return item
+
+def _apply_parsed_fields(item: ListItem, parsed: ParsedItem) -> None:
+    """Copy parsed values to the ListItem model."""
+
+    item.item_name = parsed.name or None
+    item.qty_value = parsed.quantity
+    item.qty_unit = parsed.unit
+    item.norm_qty_value = parsed.normalized_quantity
+    item.norm_qty_unit = parsed.normalized_unit
 
 
 @router.get(
@@ -218,7 +229,14 @@ def create_item(
 ) -> ListItemResponse:
     _get_shopping_list_or_404(session, shopping_list_id)
 
-    item = ListItem(list_id=shopping_list_id, **payload.model_dump())
+    parsed = item_parser.parse(raw_text_item=payload.raw_text_item, raw_text_qty=payload.raw_text_qty)
+    item = ListItem(
+        list_id=shopping_list_id,
+        raw_text_qty=payload.raw_text_qty,
+        raw_text_item=payload.raw_text_item,
+        position=payload.position,
+    )
+    _apply_parsed_fields(item, parsed)
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -241,6 +259,10 @@ def update_item(
     update_fields = payload.model_dump(exclude_unset=True)
     for field, value in update_fields.items():
         setattr(item, field, value)
+
+    if "raw_text_qty" in update_fields or "raw_text_item" in update_fields:
+        parsed = item_parser.parse(raw_text_item=item.raw_text_item, raw_text_qty=item.raw_text_qty)
+        _apply_parsed_fields(item, parsed)
 
     session.add(item)
     session.commit()
