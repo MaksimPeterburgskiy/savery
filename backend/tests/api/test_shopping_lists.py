@@ -293,23 +293,24 @@ def test_create_item_for_shopping_list(client: TestClient) -> None:
             f"/api/shopping-lists/{shopping_list_id}/items",
             json={
                 "raw_text_qty": "2",
-                "raw_text_item": "apples",
-                "item_name": "Apples",
-                "qty_value": 2.0,
-                "qty_unit": "count",
+                "raw_text_item": "Two Apples",
                 "position": 1,
             },
         )
 
         assert response.status_code == 201
         body = response.json()
-        assert body["item_name"] == "Apples"
+        assert body["raw_text_item"] == "Two Apples"
+        assert body["raw_text_qty"] == "2"
+        assert body["item_name"] is None
         assert body["position"] == 1
 
         with session_scope() as session:
             items = session.exec(select(ListItem).where(ListItem.list_id == shopping_list_id)).all()
             assert len(items) == 1
-            assert items[0].item_name == "Apples"
+            assert items[0].raw_text_item == "Two Apples"
+            assert items[0].raw_text_qty == "2"
+            assert items[0].item_name is None
     finally:
         if shopping_list_id:
             cleanup_shopping_list(shopping_list_id)
@@ -320,9 +321,40 @@ def test_create_item_for_nonexistent_list_returns_404(client: TestClient) -> Non
     nonexistent_id = uuid4()
     response = client.post(
         f"/api/shopping-lists/{nonexistent_id}/items",
-        json={"item_name": "Test", "position": 1},
+        json={"raw_text_item": "Test", "position": 1},
     )
     assert response.status_code == 404
+
+
+def test_create_item_rejects_readonly_fields(client: TestClient) -> None:
+    """Test that create payload cannot include derived fields."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/items",
+            json={
+                "raw_text_item": "Apples",
+                "item_name": "Not Allowed",
+                "qty_value": 1,
+                "qty_unit": "count",
+                "norm_qty_value": 1,
+                "norm_qty_unit": "ct",
+                "position": 1,
+            },
+        )
+
+        assert response.status_code == 422
+    finally:
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
 
 
 def test_update_list_item(client: TestClient) -> None:
