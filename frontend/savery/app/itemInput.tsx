@@ -194,7 +194,7 @@ function itemInput() {
           }}
           pointerEvents="box-none">
           {hasItems && (
-            <Link href="/storeselect" asChild>
+            <Link href="/searchSelect" asChild>
               <Button variant="continue" size="xl">
                 <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
                 <ArrowRight size={20} color="white" />
