@@ -50,6 +50,14 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
                     item_matches.append(list_item.item_matches[0])
 
             case OptimizationMode.SPEED:
+                # TODO: order selected stores by distance from user (need lat and long for proper calc)
+                # job.plan.selected_stores.sort(key=lambda sp: math.abs(job.plan.user_geography - sp.store.geography))
+                stores = [sp.store for sp in job.plan.selected_stores]
+                for list_item in job.plan.list.list_items:
+                    list_item.item_matches.sort(
+                        key=lambda im: job.plan.selected_stores.index(im.chosen_store_product.store)
+                    )
+                    item_matches.append(list_item.item_matches[0])
                 pass
 
             case OptimizationMode.BALANCED:
@@ -61,6 +69,11 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
         # TODO: optimize stores visit order; for now, just make sure all stores are included
         # need to rework a lot; need to ensure all items for each store are assoc., probably use dict[store_id, PlanStoreVisit]
         job.plan.store_visits = list(
-            set([PlanStoreVisit(sequence=i, store=im.store) for i, im in enumerate(item_matches)])
+            set(
+                [
+                    PlanStoreVisit(sequence=i, store=im.store)
+                    for i, im in enumerate(item_matches)
+                ]
+            )
         )
         session.commit()
