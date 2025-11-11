@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox, XBox } from '@/components/ui/checkbox';
+import { Checkbox } from '@/components/ui/checkbox';
 import React, { useEffect, useState } from 'react';
 import { CardStyle } from '@/lib/theme';
 import { getItems, subscribe, setItems } from '@/lib/itemStore';
@@ -44,45 +44,12 @@ const ItemMatchList: React.FC<ItemMatchListProps> = ({
   }, [selections, items, onAllSelected]);
 
   const renderItem: ListRenderItem<Item> = ({ item }) => (
-    <View>
-      <ItemMatchCard
-        item={item}
-        selection={selections[item.id]}
-        onSelect={(sel) => {
-          setSelections((prev) => {
-            const next: Record<string, 'include' | 'exclude' | undefined> = {
-              ...prev,
-              [item.id]: sel,
-            };
-            // If parent is included, clear alts (they don't apply)
-            // Also if the selection becomes undefined clear alts
-            if (sel === 'include' || sel === undefined) {
-              if (item.alts && item.alts.length > 0) {
-                for (const alt of item.alts) {
-                  next[alt.id] = undefined;
-                }
-              }
-            }
-            return next;
-          });
-        }}
-      />
-
-      {/* If the item is explicitly excluded, render its alternatives beneath it */}
-      {selections[item.id] === 'exclude' && item.alts && item.alts.length > 0 ? (
-        <View style={{ marginLeft: 18, marginTop: 8, gap: 8 }}>
-          {item.alts.map((alt) => (
-            <ItemMatchCard
-              key={`${item.id}-alt-${alt.id}`}
-              item={alt}
-              selection={selections[alt.id]}
-              onSelect={(sel) => setSelections((prev) => ({ ...prev, [alt.id]: sel }))}
-            />
-          ))}
-          <View style={{ height: 0 }} />
-        </View>
-      ) : null}
-    </View>
+    <ItemMatchCard
+      key={item.id}
+      item={item}
+      selections={selections}
+      setSelections={setSelections}
+    />
   );
 
   return (
@@ -90,44 +57,69 @@ const ItemMatchList: React.FC<ItemMatchListProps> = ({
       data={items}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
-      contentContainerStyle={CardStyle.container}
+      // Add extra bottom padding so the last card isn't hidden behind the button
+      contentContainerStyle={[CardStyle.container, { paddingBottom: 140 }]}
     />
   );
 };
 
 interface ItemMatchCardProps {
   item: Item;
-  selection?: 'include' | 'exclude' | undefined;
-  onSelect: (sel: 'include' | 'exclude' | undefined) => void;
+  selections: Record<string, 'include' | 'exclude' | undefined>;
+  setSelections: React.Dispatch<
+    React.SetStateAction<Record<string, 'include' | 'exclude' | undefined>>
+  >;
 }
 
-const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item, selection, onSelect }) => {
-  return (
-    <Card className="flex-row items-center rounded-xl bg-[#E5E5E5] px-4 py-3">
-      <CardContent className="w-full flex-row items-start justify-between p-0">
-        <View className="flex-col items-start justify-between p-0">
-          <Text className="text-base text-[#000000ff]">{item.name}</Text>
-          {typeof item.price === 'number' ? (
-            <Text className="text-base text-[#000000ff]">${item.price.toFixed(2)}</Text>
-          ) : null}
-        </View>
+const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item, selections, setSelections }) => {
+  const suggestions = item.alts && item.alts.length > 0 ? item.alts : [item];
+  const suggestionCount = suggestions.length;
 
-        <View className="align-center flex-row items-end items-center justify-between gap-2 p-0">
-          <Checkbox
-            style={CardStyle.checkContainer}
-            accessibilityLabel={`Include ${item.name}`}
-            checked={selection === 'include'}
-            onCheckedChange={(v: boolean) => onSelect(v ? 'include' : undefined)}
-          />
-          <XBox
-            style={CardStyle.xContainer}
-            accessibilityLabel={`Exclude ${item.name}`}
-            checked={selection === 'exclude'}
-            onCheckedChange={(v: boolean) => onSelect(v ? 'exclude' : undefined)}
-          />
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Card style={{ borderRadius: 12, padding: 10, backgroundColor: '#EDEDED' }}>
+        <CardContent className="w-full p-0">
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              {/* Title: item name and number of suggestions underneath (no price, no controls) */}
+              <Text style={{ fontWeight: '700', color: '#000' }}>{item.name}</Text>
+              <Text style={{ color: '#000' }}>
+                {suggestionCount} suggestion{suggestionCount !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            {/* Intentionally no include/exclude controls on the title — selections happen per suggestion below */}
+            <View />
+          </View>
+        </CardContent>
+
+        {/* Always show suggestions as rows beneath the title */}
+        <View style={{ gap: 8 }}>
+          {suggestions.map((sugg) => (
+            <View key={`${item.id}-sugg-${sugg.id}`} style={CardStyle.itemRow}>
+              <View style={CardStyle.imagePlaceholder} />
+              <View style={CardStyle.itemInfo}>
+                <Text style={CardStyle.itemName}>{sugg.name}</Text>
+                <Text style={CardStyle.itemPrice}>${(sugg.price ?? 0).toFixed(2)}</Text>
+              </View>
+
+              <Checkbox
+                style={CardStyle.checkContainer}
+                accessibilityLabel={`Select ${sugg.name}`}
+                checked={selections[sugg.id] === 'include'}
+                onCheckedChange={(v: boolean) =>
+                  setSelections((prev: Record<string, 'include' | 'exclude' | undefined>) => {
+                    const next = { ...prev };
+                    next[sugg.id] = v ? 'include' : undefined;
+                    return next;
+                  })
+                }
+              />
+            </View>
+          ))}
         </View>
-      </CardContent>
-    </Card>
+      </Card>
+    </View>
   );
 };
 
@@ -176,7 +168,7 @@ function ItemMatch() {
         setSelections={setSelections}
       />
       {allSelected && (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 30 }}>
           <Button variant="continue" size="xl" onPress={confirmAndProceed}>
             <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
             <Ionicons name="arrow-forward" size={20} color="white" />
