@@ -82,27 +82,15 @@ export const NAV_THEME: Record<'light' | 'dark', Theme> = {
 };
 
 export const CardStyle = StyleSheet.create({
-    container: {
-        // padding: 16,
-    },
     card: {
         backgroundColor: '#EDEDED',
         borderRadius: 12,
         padding: 12,
         marginBottom: 16,
     },
-    header: {
+    headerSpaceBetween: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    storeName: {
-        fontWeight: '700',
-        color: '#000',
-    },
-    totalCost: {
-        fontWeight: '700',
-        color: '#000',
     },
     itemRow: {
         flexDirection: 'row',
@@ -122,13 +110,6 @@ export const CardStyle = StyleSheet.create({
     itemInfo: {
         color: '#000',
         flex: 1,
-    },
-    itemName: {
-        color: '#000',
-        fontWeight: '600',
-    },
-    itemPrice: {
-        color: '#555',
     },
     checkContainer: {
         width: 42,
@@ -156,5 +137,17 @@ export const CardStyle = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    centeredRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    }, 
+    mainText: {
+        fontWeight: '700',
+        color: '#000',
+    },
+    subText: {
+        color: '#000',
     },
 });

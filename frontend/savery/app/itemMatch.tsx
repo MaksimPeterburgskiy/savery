@@ -2,13 +2,13 @@ import { FlatList, ListRenderItem, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import React, { useEffect, useState } from 'react';
 import { CardStyle } from '@/lib/theme';
 import { getItems, subscribe, setItems } from '@/lib/itemStore';
 import type { ItemRef } from '@/lib/itemStore';
+import { ArrowRight } from 'lucide-react-native';
 type Item = ItemRef;
 
 type ItemMatchListProps = {
@@ -57,8 +57,7 @@ const ItemMatchList: React.FC<ItemMatchListProps> = ({
       data={items}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
-      // Add extra bottom padding so the last card isn't hidden behind the button
-      contentContainerStyle={[CardStyle.container, { paddingBottom: 140 }]}
+      contentContainerStyle={{ paddingBottom: 140 }}
     />
   );
 };
@@ -76,31 +75,27 @@ const ItemMatchCard: React.FC<ItemMatchCardProps> = ({ item, selections, setSele
   const suggestionCount = suggestions.length;
 
   return (
-    <View style={{ marginBottom: 8 }}>
-      <Card style={{ borderRadius: 12, padding: 10, backgroundColor: '#EDEDED' }}>
+    <View>
+      <Card style={CardStyle.card}>
         <CardContent className="w-full p-0">
-          <View
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              {/* Title: item name and number of suggestions underneath (no price, no controls) */}
-              <Text style={{ fontWeight: '700', color: '#000' }}>{item.name}</Text>
-              <Text style={{ color: '#000' }}>
-                {suggestionCount} suggestion{suggestionCount !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            {/* Intentionally no include/exclude controls on the title — selections happen per suggestion below */}
-            <View />
+          <View style={CardStyle.headerSpaceBetween}>
+            {/* Title: item name and number of suggestions underneath (no price, no controls) */}
+            <Text style={CardStyle.mainText}>{item.name}</Text>
+            <Text style={CardStyle.subText}>
+              {suggestionCount} match{suggestionCount !== 1 ? 'es' : ''}
+            </Text>
           </View>
+          {/* Intentionally no include/exclude controls on the title — selections happen per suggestion below */}
         </CardContent>
 
         {/* Always show suggestions as rows beneath the title */}
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 2 }}>
           {suggestions.map((sugg) => (
             <View key={`${item.id}-sugg-${sugg.id}`} style={CardStyle.itemRow}>
               <View style={CardStyle.imagePlaceholder} />
               <View style={CardStyle.itemInfo}>
-                <Text style={CardStyle.itemName}>{sugg.name}</Text>
-                <Text style={CardStyle.itemPrice}>${(sugg.price ?? 0).toFixed(2)}</Text>
+                <Text style={CardStyle.mainText}>{sugg.name}</Text>
+                <Text style={CardStyle.subText}>${(sugg.price ?? 0).toFixed(2)}</Text>
               </View>
 
               <Checkbox
@@ -171,7 +166,7 @@ function ItemMatch() {
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 30 }}>
           <Button variant="continue" size="xl" onPress={confirmAndProceed}>
             <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
-            <Ionicons name="arrow-forward" size={20} color="white" />
+            <ArrowRight size={20} color="white" />
           </Button>
         </View>
       )}

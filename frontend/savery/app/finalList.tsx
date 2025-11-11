@@ -20,7 +20,7 @@ const StoreList: React.FC = () => {
       data={stores}
       keyExtractor={(store) => store.id}
       renderItem={renderStore}
-      contentContainerStyle={CardStyle.container}
+    //   contentContainerStyle={CardStyle.container}
     />
   );
 };
@@ -34,19 +34,19 @@ const StoreCard: React.FC<StoreCardProps> = ({ store }) => {
 
   return (
     <View style={CardStyle.card}>
-      <View style={CardStyle.header}>
-        <Text style={CardStyle.storeName}>
+      <View style={CardStyle.headerSpaceBetween}>
+        <Text style={CardStyle.mainText}>
           {store.name} - {store.distance}
         </Text>
-        <Text style={CardStyle.totalCost}>${(store.totalCost ?? 0).toFixed(2)}</Text>
+        <Text style={CardStyle.mainText}>${(store.totalCost ?? 0).toFixed(2)}</Text>
       </View>
 
       {store.items.map((item) => (
         <View key={item.id} style={CardStyle.itemRow}>
           <View style={CardStyle.imagePlaceholder} />
           <View style={CardStyle.itemInfo}>
-            <Text style={CardStyle.itemName}>{item.name}</Text>
-            <Text style={CardStyle.itemPrice}>${(item.price ?? 0).toFixed(2)}</Text>
+            <Text style={CardStyle.mainText}>{item.name}</Text>
+            <Text style={CardStyle.subText}>${(item.price ?? 0).toFixed(2)}</Text>
           </View>
 
           <Checkbox

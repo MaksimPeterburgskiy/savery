@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { View } from 'react-native';
 import { Link } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowRight } from 'lucide-react-native';
 
 function SearchSelect() {
   const [tab, setTab] = React.useState<string>('');
@@ -30,7 +30,13 @@ function SearchSelect() {
       </Tabs>
 
       {/* TODO: Implement a location display on a map */}
-      <View style={{ height: 500, borderRadius: 10, alignItems: 'center', backgroundColor: 'lightgray' }}>
+      <View
+        style={{
+          height: 500,
+          borderRadius: 10,
+          alignItems: 'center',
+          backgroundColor: 'lightgray',
+        }}>
         <Text style={{ color: 'black' }}>Placeholder for a map implementation</Text>
       </View>
 
@@ -38,7 +44,7 @@ function SearchSelect() {
         <Link href="/itemMatch" asChild>
           <Button variant="continue" size="xl">
             <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
-            <Ionicons name="arrow-forward" size={20} color="white" />
+            <ArrowRight size={20} color="white" />
           </Button>
         </Link>
       )}

@@ -156,21 +156,21 @@ function itemInput() {
                     alts: (it as any).alts ?? [
                       {
                         id: `${it.id}-a`,
-                        name: `${it.name} suggestion A`,
+                        name: `${it.name} match A`,
                         price,
                         quantity: it.quantity,
                         alts: [],
                       },
                       {
                         id: `${it.id}-b`,
-                        name: `${it.name} suggestion B`,
+                        name: `${it.name} match B`,
                         price,
                         quantity: it.quantity,
                         alts: [],
                       },
                       {
                         id: `${it.id}-c`,
-                        name: `${it.name} suggestion C`,
+                        name: `${it.name} match C`,
                         price,
                         quantity: it.quantity,
                         alts: [],
