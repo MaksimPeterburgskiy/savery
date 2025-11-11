@@ -26,7 +26,7 @@ class StoreProduct:
 logger = get_task_logger(__name__)
 
 
-
+#Scrapes hannaford website for all store locations
 @shared_task(bind=True, name="workers.scraping.scrape_hannaford_stores")
 def scrape_hannaford(self=None, *args, **kwargs) -> None:
 
@@ -44,7 +44,6 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
 
             #scrape each city page for stores
             city_list = page.locator("[class=Directory-listLinks]")
-            count = city_list.count()
             cities = city_list.locator("li a")
             
             count = cities.count()
@@ -92,7 +91,8 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                             store.chain_id = existing_chain.id
                             session.add(store)
                         session.commit()
-                    return stores
+                    return
+                   # return stores
         context.close()
         browser.close()
         
@@ -110,7 +110,7 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                 store.chain_id = existing_chain.id
                 session.add(store)
             session.commit()
-        return stores
+        #return stores
 
 
 def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: str) -> Store:
@@ -162,23 +162,70 @@ def scrape_price_chopper() -> None:
         page = context.new_page()
 
         page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
-
+        stores = []
         for price_chopper_state in price_chopper_states:
             page.goto(f"https://www.pricechopper.com/stores/{price_chopper_state.lower()}")
-
+            print(f"Scraping Price Chopper stores in {price_chopper_state}")
             #get all cities in the state
-            cities_list_location = page.locator("[class=locations-list-container]")
-            map_list= cities_list_location.locator("[class=map-list ]")
-            print(map_list)
-            cities = map_list.locator("li")
+            locations_container = page.locator("[class=locations-list-container]")
+            cities = locations_container.locator("li")
             count = cities.count()
-            print(count)
             for i in range(count):
-                city = map_list.nth(i)
+                city = cities.nth(i)
                 city_url = city.locator("a").get_attribute("href")
+                print(f"Going to city URL: {city_url}")
                 page.goto(city_url)
-                #get all stores in the city
+
+                page.wait_for_selector("ul.map-list.height-auto", timeout=10_000)
+
+                # locate the list and its items
+                ul = page.locator("ul.map-list.height-auto")
+                print("lists found:", ul.count())          # should be 1
+                items = ul.locator("li.map-list-item-wrap")
+                print("items found:", items.count())
+
+                # iterate items
+                for i in range(items.count()):
+                    location = items.nth(i)
+                    url_div = location.locator(".map-list-item-header")
+                    url = url_div.locator("a").get_attribute("href")
+                    print("URL:", url)
+                    name = location.locator(".location-name").inner_text().strip()
+                    address = location.locator(".address").inner_text().strip()
+                    print("Store Name:", name)
+                    print("Address:", address)
+                    store = get_store_date_price_chopper(page, url, name, price_chopper_state)
+                    stores.append(store)
+                    
+                    
+                break
             break
+    return stores
+
+def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_state: str) -> Store:
+    page.goto(url)
+    print(url)
+    locator = page.locator(".indy-location-container")
+    address = locator.locator(".address").inner_text().strip()
+    name = locator.locator(".location-name").inner_text().strip()
+    store = Store(
+        chain_id=None,
+        name=name,
+        external_ref=number,
+        number=number,
+        address_line1=address_line_1,
+        city=city_name,
+        region=price_chopper_state,
+        postal_code=zip_code,
+        country_code="US",
+        timezone=timezone,
+        hours_json=hours,
+        phone=phone,
+        geography=f'POINT({longitude} {latitude})'
+        
+    )
+
+    return store
 
 
 @shared_task(name="workers.scraping.scrape_hannaford_items")
@@ -240,13 +287,6 @@ def scrape_hannaford_items() -> None:
 
 
 
-def add_stores_to_db(stores: list[Store]) -> None:
-    #add the stores to the database
-    with session_scope() as session:
-        for store in stores:
-            session.add(store)
-        session.commit()
-
 
 
 @shared_task(bind=True, name="workers.scraping.test_celery")
@@ -256,8 +296,7 @@ def test_celery(self) -> str:
     return "Celery is working!"
 
 if __name__ == "__main__":
-   stores_ = scrape_hannaford()
-   print(f"Scraped {len(stores_)} stores from Hannaford")
+
    #add_stores_to_db(stores_)
-  #  scrape_price_chopper()
+  scrape_price_chopper()
   # scrape_hannaford_items()

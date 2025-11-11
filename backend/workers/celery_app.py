@@ -19,9 +19,11 @@ celery_app.conf.update(
 
 
 celery_app.conf.beat_schedule = {
+    
+    #scrape all hannaford stores every day at midnight eastern time
     "scrape-hannaford-every-24-hours": {
         "task": "workers.scraping.scrape_hannaford_stores",
-        "schedule": crontab(minute=0, hour="*/24"),
+        "schedule": crontab(minute=0, hour=0),
         "args": (),
     },
 
@@ -32,11 +34,11 @@ celery_app.conf.beat_schedule = {
     #     "args": (),
     # },
 
-    "test-hannaford": {
-        "task": "workers.scraping.scrape_hannaford_stores",
-        "schedule": crontab(minute="*/1"),
-        "args": (),
-    },
+    # "test-hannaford": {
+    #     "task": "workers.scraping.scrape_hannaford_stores",
+    #     "schedule": crontab(minute="*/1"),
+    #     "args": (),
+    # },
     
     # "test-ping": {
     #     "task": "workers.health.ping",
