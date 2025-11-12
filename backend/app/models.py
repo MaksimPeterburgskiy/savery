@@ -38,6 +38,8 @@ class JobStage(str, Enum):
     """Build the final plan and route."""
     HEALTHCHECK = "HEALTHCHECK"
     """Background health validation that the stack is responsive."""
+    FANOUT = "FANOUT"
+    """Fan out selected candidates to Item Matches at each store."""
 
 
 class JobStatus(str, Enum):
@@ -323,7 +325,8 @@ class ItemMatch(Base, table=True):
             "plan_id",
             "list_item_id",
             "store_id",
-            name="uq_item_matches_plan_item_store",
+            "item_match_candidate_id",
+            name="uq_item_matches_plan_item_store_candidate",
         ),
     )
 

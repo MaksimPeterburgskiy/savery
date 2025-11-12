@@ -50,6 +50,8 @@ def _task_name_for_stage(stage: JobStage) -> str:
     stage_map: dict[JobStage, str] = {
         JobStage.MATCH: settings.celery_match_task,
         JobStage.HEALTHCHECK: settings.celery_health_task,
+        JobStage.FANOUT: settings.celery_fanout_task,
+        
     }
     task_name = stage_map.get(stage)
     if not task_name:

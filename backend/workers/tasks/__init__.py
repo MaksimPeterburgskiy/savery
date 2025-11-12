@@ -1,5 +1,6 @@
 """Task modules for Celery workers."""
 
-from . import health, item_matches  # noqa: F401
+from . import health  # noqa: F401
+from .item_matches import create_item_match_candidates  # noqa: F401
 
-__all__ = ["health", "item_matches"]
+__all__ = ["health", "create_item_match_candidates"]
