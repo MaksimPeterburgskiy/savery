@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from geoalchemy2 import WKTElement
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -97,6 +97,22 @@ class RoutePlanCreate(BaseModel):
     user_latitude: float | None = None
     selected_store_ids: list[UUID] = Field(default_factory=list)
 
+    @field_validator("user_longitude")
+    @classmethod
+    def validate_longitude(cls, v: float | None) -> float | None:
+        """Validate longitude is within valid range [-180, 180]."""
+        if v is not None and (v < -180.0 or v > 180.0):
+            raise ValueError("user_longitude must be between -180 and 180 degrees")
+        return v
+
+    @field_validator("user_latitude")
+    @classmethod
+    def validate_latitude(cls, v: float | None) -> float | None:
+        """Validate latitude is within valid range [-90, 90]."""
+        if v is not None and (v < -90.0 or v > 90.0):
+            raise ValueError("user_latitude must be between -90 and 90 degrees")
+        return v
+
     @model_validator(mode="after")
     def validate_location(self) -> "RoutePlanCreate":
         lon_set = self.user_longitude is not None
@@ -120,6 +136,22 @@ class RoutePlanUpdate(BaseModel):
     total_price: float | None = None
     total_distance_m: int | None = None
     total_travel_sec: int | None = None
+
+    @field_validator("user_longitude")
+    @classmethod
+    def validate_longitude(cls, v: float | None) -> float | None:
+        """Validate longitude is within valid range [-180, 180]."""
+        if v is not None and (v < -180.0 or v > 180.0):
+            raise ValueError("user_longitude must be between -180 and 180 degrees")
+        return v
+
+    @field_validator("user_latitude")
+    @classmethod
+    def validate_latitude(cls, v: float | None) -> float | None:
+        """Validate latitude is within valid range [-90, 90]."""
+        if v is not None and (v < -90.0 or v > 90.0):
+            raise ValueError("user_latitude must be between -90 and 90 degrees")
+        return v
 
     @model_validator(mode="after")
     def validate_location(self) -> "RoutePlanUpdate":

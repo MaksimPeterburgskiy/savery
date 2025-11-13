@@ -130,11 +130,21 @@ def create_item_match_job(
     try:
         enqueue_job(job.id)
     except ValueError as exc:
+        job.status = JobStatus.FAILED
+        job.message = f"Failed to enqueue job: {exc}"
+        job.completed_at = utcnow()
+        db.add(job)
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
     except Exception as exc:
+        job.status = JobStatus.FAILED
+        job.message = "Failed to enqueue job: Celery unavailable"
+        job.completed_at = utcnow()
+        db.add(job)
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to enqueue item match job",
@@ -325,11 +335,21 @@ def create_item_fanout_job(
     try:
         enqueue_job(job.id)
     except ValueError as exc:
+        job.status = JobStatus.FAILED
+        job.message = f"Failed to enqueue job: {exc}"
+        job.completed_at = utcnow()
+        db.add(job)
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
     except Exception as exc:
+        job.status = JobStatus.FAILED
+        job.message = "Failed to enqueue job: Celery unavailable"
+        job.completed_at = utcnow()
+        db.add(job)
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to enqueue item match fanout job",

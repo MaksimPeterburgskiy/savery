@@ -270,6 +270,109 @@ def test_create_route_plan_validation_requires_both_lon_lat(client: TestClient) 
             cleanup_shopping_list(shopping_list_id)
 
 
+def test_create_route_plan_with_invalid_longitude_out_of_range(client: TestClient) -> None:
+    """Test that creating route plan with out-of-range longitude returns validation error."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+        # Try with longitude > 180
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/route-plans",
+            json={"user_longitude": 181.0, "user_latitude": 37.7749},
+        )
+        assert response.status_code == 422
+        assert "user_longitude must be between -180 and 180 degrees" in str(response.json())
+
+        # Try with longitude < -180
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/route-plans",
+            json={"user_longitude": -181.0, "user_latitude": 37.7749},
+        )
+        assert response.status_code == 422
+        assert "user_longitude must be between -180 and 180 degrees" in str(response.json())
+    finally:
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
+def test_create_route_plan_with_invalid_latitude_out_of_range(client: TestClient) -> None:
+    """Test that creating route plan with out-of-range latitude returns validation error."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+        # Try with latitude > 90
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/route-plans",
+            json={"user_longitude": -122.4194, "user_latitude": 91.0},
+        )
+        assert response.status_code == 422
+        assert "user_latitude must be between -90 and 90 degrees" in str(response.json())
+
+        # Try with latitude < -90
+        response = client.post(
+            f"/api/shopping-lists/{shopping_list_id}/route-plans",
+            json={"user_longitude": -122.4194, "user_latitude": -91.0},
+        )
+        assert response.status_code == 422
+        assert "user_latitude must be between -90 and 90 degrees" in str(response.json())
+    finally:
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
+def test_create_route_plan_with_valid_boundary_coordinates(client: TestClient) -> None:
+    """Test that creating route plan with boundary coordinate values is accepted."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+    route_plan_ids: list[UUID] = []
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+        # Test valid boundary values
+        test_cases = [
+            (-180.0, -90.0),  # Min longitude, min latitude
+            (180.0, 90.0),  # Max longitude, max latitude
+            (-180.0, 90.0),  # Min longitude, max latitude
+            (180.0, -90.0),  # Max longitude, min latitude
+            (0.0, 0.0),  # Equator and prime meridian
+        ]
+
+        for lon, lat in test_cases:
+            response = client.post(
+                f"/api/shopping-lists/{shopping_list_id}/route-plans",
+                json={"user_longitude": lon, "user_latitude": lat},
+            )
+            assert response.status_code == 201, f"Failed for lon={lon}, lat={lat}"
+            body = response.json()
+            route_plan_ids.append(UUID(body["id"]))
+            assert body["user_longitude"] == lon
+            assert body["user_latitude"] == lat
+    finally:
+        for route_plan_id in route_plan_ids:
+            cleanup_route_plan(route_plan_id)
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
 # Route Plan Retrieval Tests --------------------------------------------------
 
 
@@ -582,6 +685,96 @@ def test_update_nonexistent_route_plan_returns_404(client: TestClient) -> None:
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "Route plan not found"
+
+
+def test_update_route_plan_with_invalid_longitude_out_of_range(client: TestClient) -> None:
+    """Test that updating route plan with out-of-range longitude returns validation error."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+    route_plan_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+            route_plan = RoutePlan(
+                list_id=shopping_list_id,
+                client_id=client_id,
+                status="draft",
+                opt_mode=OptimizationMode.BALANCED,
+            )
+            session.add(route_plan)
+            session.flush()
+            route_plan_id = route_plan.id
+
+        # Try with longitude > 180
+        response = client.patch(
+            f"/api/route-plans/{route_plan_id}",
+            json={"user_longitude": 181.0, "user_latitude": 37.7749},
+        )
+        assert response.status_code == 422
+        assert "user_longitude must be between -180 and 180 degrees" in str(response.json())
+
+        # Try with longitude < -180
+        response = client.patch(
+            f"/api/route-plans/{route_plan_id}",
+            json={"user_longitude": -181.0, "user_latitude": 37.7749},
+        )
+        assert response.status_code == 422
+        assert "user_longitude must be between -180 and 180 degrees" in str(response.json())
+    finally:
+        if route_plan_id:
+            cleanup_route_plan(route_plan_id)
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
+
+
+def test_update_route_plan_with_invalid_latitude_out_of_range(client: TestClient) -> None:
+    """Test that updating route plan with out-of-range latitude returns validation error."""
+    client_id = f"test-client-{uuid4()}"
+    shopping_list_id: UUID | None = None
+    route_plan_id: UUID | None = None
+
+    try:
+        with session_scope() as session:
+            shopping_list = ShoppingList(client_id=client_id, title="Test List")
+            session.add(shopping_list)
+            session.flush()
+            shopping_list_id = shopping_list.id
+
+            route_plan = RoutePlan(
+                list_id=shopping_list_id,
+                client_id=client_id,
+                status="draft",
+                opt_mode=OptimizationMode.BALANCED,
+            )
+            session.add(route_plan)
+            session.flush()
+            route_plan_id = route_plan.id
+
+        # Try with latitude > 90
+        response = client.patch(
+            f"/api/route-plans/{route_plan_id}",
+            json={"user_longitude": -122.4194, "user_latitude": 91.0},
+        )
+        assert response.status_code == 422
+        assert "user_latitude must be between -90 and 90 degrees" in str(response.json())
+
+        # Try with latitude < -90
+        response = client.patch(
+            f"/api/route-plans/{route_plan_id}",
+            json={"user_longitude": -122.4194, "user_latitude": -91.0},
+        )
+        assert response.status_code == 422
+        assert "user_latitude must be between -90 and 90 degrees" in str(response.json())
+    finally:
+        if route_plan_id:
+            cleanup_route_plan(route_plan_id)
+        if shopping_list_id:
+            cleanup_shopping_list(shopping_list_id)
 
 
 # Route Plan Deletion Tests ---------------------------------------------------
