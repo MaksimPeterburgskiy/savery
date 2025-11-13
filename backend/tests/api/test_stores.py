@@ -46,7 +46,7 @@ def test_get_store_chains_returns_created_chains(client: TestClient) -> None:
                 session.flush()
                 created_chains[chain.id] = chain.name
 
-        response = client.get("/api/store_chains")
+        response = client.get("/api/store-chains")
 
         assert response.status_code == 200
         payload = response.json()
@@ -120,7 +120,7 @@ def test_get_stores_by_store_chain_returns_expected_stores(client: TestClient) -
                 session.flush()
                 created_stores[store.id] = (spec["name"], spec["longitude"], spec["latitude"])
 
-        response = client.get(f"/api/store_chains/{chain_id}/stores")
+        response = client.get(f"/api/store-chains/{chain_id}/stores")
 
         assert response.status_code == 200
         payload = response.json()
@@ -194,7 +194,7 @@ def test_get_nearby_store_chains_returns_chains_within_radius(client: TestClient
             session.add(far_store)
 
         response = client.get(
-            "/api/store_chains/nearby",
+            "/api/store-chains/nearby",
             params={
                 "latitude": reference_lat,
                 "longitude": reference_lon,
