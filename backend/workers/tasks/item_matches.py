@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
 
 from backend.app.db import session_scope
-from backend.app.models import ItemMatchCandidate, ItemMatch, Job, JobStage, Product, RoutePlan, ShoppingList, StoreProduct
+from backend.app.models import ItemMatch, ItemMatchCandidate, Job, JobStage, Product, RoutePlan, ShoppingList, StoreProduct
 from backend.app.tasks import mark_job_failed, mark_job_running, mark_job_success, record_job_progress
 
 
@@ -52,7 +52,7 @@ def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
             )
 
             # remove existing candidates so reruns don't violate unique constraints
-            session.exec(delete(ItemMatchCandidate).where(ItemMatchCandidate.plan_id == plan.id))
+            session.exec(delete(ItemMatchCandidate).where(ItemMatchCandidate.plan_id == plan.id).execution_options(synchronize_session=False))
             session.flush()
 
             # item matching
@@ -74,7 +74,7 @@ def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
                             *[Product.name.ilike(f"%{term}%") for term in canon_terms if term],
                         )
                     )
-                    matches = session.exec(statement).scalars().all()
+                    matches = session.exec(statement).all()
                     matched_product_ids.update(matches)
 
                 # create item match candidates for matched products
@@ -142,20 +142,17 @@ def fanout_candidates_to_item_matches(self, job_id: str | UUID) -> dict[str, str
                 task=self,
             )
 
-            session.exec(delete(ItemMatch).where(ItemMatch.plan_id == plan.id))
+            session.exec(delete(ItemMatch).where(ItemMatch.plan_id == plan.id).execution_options(synchronize_session=False))
             session.flush()
 
             total_candidates = len(match_candidates)
             for idx, candidate in enumerate(match_candidates, start=1):
                 for selected_store in selected_stores:
-                    statement = (
-                        select(StoreProduct)
-                        .where(
-                            StoreProduct.product_id == candidate.product_id,
-                            StoreProduct.store_id == selected_store.store_id,
-                        )
+                    statement = select(StoreProduct).where(
+                        StoreProduct.product_id == candidate.product_id,
+                        StoreProduct.store_id == selected_store.store_id,
                     )
-                    store_products = session.exec(statement).scalars().all()
+                    store_products = session.exec(statement).all()
                     for store_product in store_products:
                         item_match = ItemMatch(
                             plan_id=plan.id,

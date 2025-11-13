@@ -374,7 +374,10 @@ class ItemMatchCandidate(Base, table=True):
     rejected_by_user: bool = Field(default=False, nullable=False)
     """Tracks when the user explicitly rejected every match for this store."""
 
-    chosen_for_matches: List["ItemMatch"] = Relationship(back_populates="item_match_candidate")
+    chosen_for_matches: List["ItemMatch"] = Relationship(
+        back_populates="item_match_candidate",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class PlanStoreVisit(Base, table=True):
