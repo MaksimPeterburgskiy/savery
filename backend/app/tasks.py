@@ -163,6 +163,12 @@ def mark_job_success(
 
     with session_scope() as session:
         job = _get_job(session, job_uuid)
+
+        # Don't overwrite FAILED status (e.g., from cancellation)
+        # This prevents race conditions where the worker completes after cancellation
+        if job.status == JobStatus.FAILED:
+            return _build_task_meta(job, include_status, extra_meta)
+
         job.status = JobStatus.SUCCESS
         if job.progress_total is not None:
             job.progress_current = job.progress_total

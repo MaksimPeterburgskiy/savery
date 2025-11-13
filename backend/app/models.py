@@ -9,7 +9,7 @@ from uuid import UUID
 from geoalchemy2 import Geography
 from pgvector.sqlalchemy import Vector
 from pydantic import ConfigDict
-from sqlalchemy import Column, Numeric, String
+from sqlalchemy import Column, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Index, Relationship, SQLModel, UniqueConstraint
 
@@ -339,7 +339,14 @@ class ItemMatch(Base, table=True):
     store_id: UUID = Field(foreign_key="stores.id", nullable=False, index=True)
     store: Store | None = Relationship(back_populates="item_matches")
 
-    item_match_candidate_id: UUID = Field(foreign_key="item_match_candidates.id", nullable=False, index=True)
+    item_match_candidate_id: UUID = Field(
+        sa_column=Column(
+            "item_match_candidate_id",
+            ForeignKey("item_match_candidates.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
     item_match_candidate: Optional["ItemMatchCandidate"] = Relationship(back_populates="chosen_for_matches")
 
     store_product_id: UUID | None = Field(default=None, foreign_key="store_products.id", index=True)

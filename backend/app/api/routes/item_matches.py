@@ -15,6 +15,7 @@ from backend.app.api.routes.shopping_lists import ListItemResponse
 from backend.app.dependencies import get_db
 from backend.app.models import ItemMatchCandidate, Job, JobStage, JobStatus, RoutePlan, utcnow
 from backend.app.tasks import enqueue_job
+from backend.workers.celery_app import celery_app
 
 router = APIRouter()
 
@@ -165,6 +166,10 @@ def cancel_item_match_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only pending or running item match jobs can be cancelled",
         )
+
+    # Revoke the Celery task to prevent it from continuing execution
+    if job.task_id:
+        celery_app.control.revoke(job.task_id, terminate=True)
 
     job.status = JobStatus.FAILED
     if job.message:
@@ -354,6 +359,10 @@ def cancel_item_fanout_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only pending or running item fanout jobs can be cancelled",
         )
+
+    # Revoke the Celery task to prevent it from continuing execution
+    if job.task_id:
+        celery_app.control.revoke(job.task_id, terminate=True)
 
     job.status = JobStatus.FAILED
     if job.message:
