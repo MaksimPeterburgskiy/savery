@@ -5,10 +5,21 @@ import time
 from uuid import UUID
 
 from celery import shared_task
+from haversine import haversine
 
+from backend.app.api.utils.geography import (
+    extract_point_coordinates,
+    haversine_distance,
+)
 from backend.app.config import settings
 from backend.app.db import session_scope
-from backend.app.models import ItemMatch, Job, OptimizationMode, PlanStoreVisit
+from backend.app.models import (
+    ItemMatch,
+    Job,
+    OptimizationMode,
+    PlanSelectedStore,
+    PlanStoreVisit,
+)
 from backend.app.tasks import (
     get_job_status,
     mark_job_failed,
@@ -50,15 +61,22 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
                     item_matches.append(list_item.item_matches[0])
 
             case OptimizationMode.SPEED:
-                # TODO: order selected stores by distance from user (need lat and long for proper calc)
-                # job.plan.selected_stores.sort(key=lambda sp: math.abs(job.plan.user_geography - sp.store.geography))
+                user_loc = extract_point_coordinates(job.plan.user_geography)
+                def store_distance(pss: PlanSelectedStore) -> float:
+                    store_loc = extract_point_coordinates(pss.store.geography)
+                    # We are using (long, lat) order in geography, but haversine expects (lat, long)
+                    return haversine(
+                        (user_loc[1], user_loc[0]), (store_loc[1], store_loc[0])
+                    )
+                job.plan.selected_stores.sort(key=store_distance)
                 stores = [sp.store for sp in job.plan.selected_stores]
                 for list_item in job.plan.list.list_items:
                     list_item.item_matches.sort(
-                        key=lambda im: job.plan.selected_stores.index(im.chosen_store_product.store)
+                        key=lambda im: stores.index(
+                            im.store_product.store
+                        )
                     )
                     item_matches.append(list_item.item_matches[0])
-                pass
 
             case OptimizationMode.BALANCED:
                 pass
