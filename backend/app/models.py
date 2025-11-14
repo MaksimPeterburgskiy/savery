@@ -130,7 +130,9 @@ class Store(Base, table=True):
     store_visits: List["PlanStoreVisit"] = Relationship(back_populates="store")
     item_matches: List["ItemMatch"] = Relationship(back_populates="store")
 
-
+    def __str__(self):
+        return f" ({self.name} - {self.address_line1}, {self.city})"
+    
 class Product(Base, table=True):
     __tablename__ = "products"
 
