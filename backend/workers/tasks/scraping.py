@@ -5,7 +5,7 @@ import timezonefinder
 import json
 from celery import shared_task
 from celery.utils.log import get_task_logger
-
+from sqlalchemy import and_, select
 from geoalchemy2 import Geography
 from playwright.sync_api import sync_playwright
 from backend.app.db import session_scope
@@ -110,6 +110,16 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                 store.chain_id = existing_chain.id
                 session.add(store)
             session.commit()
+
+            # collect inserted store ids (objects should have ids after commit)
+            inserted_ids = []
+            for store in stores:
+                try:
+                    inserted_ids.append(str(store.id))
+                except Exception:
+                    inserted_ids.append(None)
+
+            return {"chain_id": str(existing_chain.id), "count": len(stores), "store_ids": inserted_ids}
         #return stores
 
 
@@ -156,13 +166,13 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
 
 @shared_task(name="workers.scraping.scrape_price_chopper")
 def scrape_price_chopper() -> None:
+    stores = []
     with sync_playwright() as p:
         browser = p.firefox.launch(headless=True)
         context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
         page = context.new_page()
 
         page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
-        stores = []
         for price_chopper_state in price_chopper_states:
             page.goto(f"https://www.pricechopper.com/stores/{price_chopper_state.lower()}")
             print(f"Scraping Price Chopper stores in {price_chopper_state}")
@@ -179,9 +189,7 @@ def scrape_price_chopper() -> None:
                 page.goto(city_url)
                 page.wait_for_selector("ul.map-list.height-auto", timeout=2000)
                 ul = page.locator("ul.map-list.height-auto")
-                print("lists found:", ul.count())          # should be 1
                 items = ul.locator("li.map-list-item-wrap")
-                print("items found:", items.count())
                 store_count = items.count()
 
                 for j in range(store_count):
@@ -189,22 +197,23 @@ def scrape_price_chopper() -> None:
                     print(f"Scraping store {j+1} of {store_count} in city")
                     location = items.nth(j)
                     url_div = location.locator(".map-list-item-header")
-                    print(url_div)
                     url = url_div.locator("a").get_attribute("href")
-                    print("URL:", url)
                     name = location.locator(".location-name").inner_text().strip()
                     store = get_store_date_price_chopper(page, url, name, price_chopper_state)
                     stores.append(store)
-                    print(store)
                     if j == 3:
                         break    
                 if i == 2:
                     break
+                
+    print(f"Total Price Chopper stores scraped: {len(stores)}")
     with session_scope() as session:
         chain = StoreChain(
             name="Price Chopper",
         )
-        statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+        statement = select(StoreChain).where(
+                StoreChain.name == chain.name,
+        )
         existing_chain = session.exec(statement).scalars().first()
         if existing_chain is None:
             session.add(chain)
@@ -213,7 +222,8 @@ def scrape_price_chopper() -> None:
             store.chain_id = existing_chain.id
             session.add(store)
         session.commit()
-    return stores
+    # Shouldn't reach here, but return a minimal summary if so
+    return {"chain": "Price Chopper", "count": len(stores)}
 
 def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_state: str) -> Store:
     page.goto(url)
