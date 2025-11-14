@@ -15,5 +15,8 @@
 
 "terminal.integrated.tabs.title": "${task}",
 
-}
+"debug.toolBarLocation": "floating",
 
+"debug.showSubSessionsInToolBar": false,
+
+}

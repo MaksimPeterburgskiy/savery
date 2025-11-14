@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from backend.core.db import session_scope
+from backend.app.db import session_scope
 
 
 async def get_db() -> AsyncGenerator[Any, None]:

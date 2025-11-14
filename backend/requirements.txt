@@ -1,9 +1,16 @@
 fastapi[standard]
 uvicorn[standard]
+sqlmodel
 pydantic-settings
 python-dotenv
 celery
-SQLAlchemy
 pytest
+pytest-cov
+pytest-xdist
 psycopg[binary]
 debugpy
+pint
+alembic
+pgvector
+geoalchemy2
+inflect

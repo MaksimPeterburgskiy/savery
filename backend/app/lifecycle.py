@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from backend.core.db import init_db
+from backend.app.config import settings
+from backend.app.db import create_db_and_tables
+from backend.app.migrations import upgrade_to_head
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +18,12 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting %s", app.title)
 
-    try:
-        init_db()
-    except RuntimeError as exc:  # pragma: no cover - only hit without SQLAlchemy installed
-        logger.warning("Skipping database initialization: %s", exc)
+    if settings.verify_schema_on_startup:
+        try:
+            upgrade_to_head()
+        except Exception as exc:  # pragma: no cover - guard rails for misconfigured DB
+            logger.error("Database migration failed: %s", exc)
+            raise
 
     # Insert startup initialization (DB, caches, etc.) here.
     yield
