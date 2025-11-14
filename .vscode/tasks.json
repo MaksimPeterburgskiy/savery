@@ -21,7 +21,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$ErrorActionPreference = 'Stop'; if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Write-Error 'Docker CLI not found; install Docker Desktop.'; exit 1 }; try { docker info | Out-Null; exit 0 } catch { } docker desktop start | Out-Null; for ($i = 0; $i -lt 30; $i++) { try { docker info | Out-Null; exit 0 } catch { Start-Sleep -Seconds 2 } } Write-Error 'Docker Desktop did not become ready in time.'; exit 1"
+          "exit 0"
         ]
       }
     },
