@@ -16,6 +16,7 @@ from backend.app.tasks import (
     mark_job_success,
     record_job_progress,
 )
+from backend.app.api.utils.geography import extract_point_coordinates, haversine_distance
 
 
 @shared_task(
@@ -50,12 +51,26 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
                     item_matches.append(list_item.item_matches[0])
 
             case OptimizationMode.SPEED:
-                # TODO: order selected stores by distance from user (need lat and long for proper calc)
-                # job.plan.selected_stores.sort(key=lambda sp: math.abs(job.plan.user_geography - sp.store.geography))
+                user_loc = extract_point_coordinates(job.plan.user_geography)
+                if user_loc:
+                    # Sort stores by distance from user location using haversine formula
+                    def store_distance(sp):
+                        store_loc = extract_point_coordinates(sp.store.geography)
+                        if store_loc:
+                            return haversine_distance(
+                                user_loc[0], user_loc[1], store_loc[0], store_loc[1]
+                            )
+                        # If store location is not available, put it at the end
+                        return float('inf')
+                    
+                    job.plan.selected_stores.sort(key=store_distance)
+                
                 stores = [sp.store for sp in job.plan.selected_stores]
                 for list_item in job.plan.list.list_items:
                     list_item.item_matches.sort(
-                        key=lambda im: job.plan.selected_stores.index(im.chosen_store_product.store)
+                        key=lambda im: job.plan.selected_stores.index(
+                            im.chosen_store_product.store
+                        )
                     )
                     item_matches.append(list_item.item_matches[0])
                 pass
