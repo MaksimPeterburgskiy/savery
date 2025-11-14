@@ -13,3 +13,4 @@ pint
 alembic
 pgvector
 geoalchemy2
+inflect
