@@ -50,12 +50,12 @@ class PriceEntryResponse(BaseModel):
 
     currency_code: str
     price: float
-    unit_price: float
-    unit_price_unit: str
+    unit_price: float | None = None
+    unit_price_unit: str | None = None
     source: str
     fetched_at: datetime
-    valid_from: datetime
-    valid_to: datetime
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None
     is_current: bool
 
 
@@ -67,13 +67,13 @@ class ProductResponse(BaseModel):
     id: UUID
     brand: str
     name: str
-    upc: str
-    size_text: str
-    pkg_qty_value: float
-    pkg_qty_unit: str
-    base_qty_value: float
-    base_qty_unit: str
-    image_url: str
+    upc: str | None = None
+    size_text: str | None = None
+    pkg_qty_value: float | None = None
+    pkg_qty_unit: str | None = None
+    base_qty_value: float | None = None
+    base_qty_unit: str | None = None
+    image_url: str | None = None
 
 
 class StoreProductResponse(BaseModel):
@@ -84,9 +84,9 @@ class StoreProductResponse(BaseModel):
 
     product: ProductResponse
     external_sku: str
-    aisle: str
-    shelf_code: str
-    product_url: str
+    aisle: str | None = None
+    shelf_code: str | None = None
+    product_url: str | None = None
     is_active: bool
 
 
@@ -98,13 +98,13 @@ class PlanItemResponse(BaseModel):
     id: UUID
     plan_store_visit_id: UUID
     list_item: ListItemResponse
-    store_product: StoreProductResponse
-    price_entry: PriceEntryResponse
+    store_product: StoreProductResponse | None = None
+    price_entry: PriceEntryResponse | None = None
     qty: int
-    per_qty_price: float
-    extended_price: float
+    per_qty_price: float | None = None
+    extended_price: float | None = None
     is_checked: bool
-    checked_at: datetime
+    checked_at: datetime | None = None
 
 
 class PlanItemUpdate(BaseModel):
@@ -122,9 +122,9 @@ class PlanStoreVisitResponse(BaseModel):
     plan_id: UUID
     store: StoreResponse
     sequence: int
-    travel_sec_from_prev: int
-    distance_m_from_prev: int
-    subtotal_price: float
+    travel_sec_from_prev: int | None = None
+    distance_m_from_prev: int | None = None
+    subtotal_price: float | None = None
     plan_items: list[PlanItemResponse]
 
 
@@ -134,7 +134,7 @@ class RoutePlanResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    list_id: UUID | None = None
+    list_id: UUID
     selected_stores: list[StoreResponse] = Field(default_factory=list)
     status: str
     opt_mode: OptimizationMode
@@ -646,7 +646,7 @@ def create_plan_route_job(
     if active_job is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An item match job is already running for this route plan",
+            detail="A route planning job is already running for this route plan",
         )
 
     job_statement = select(Job).where(Job.plan_id == route_plan_id, Job.stage == JobStage.OPTIMIZE)
@@ -692,7 +692,7 @@ def create_plan_route_job(
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to enqueue item match job",
+            detail="Failed to enqueue route planning job",
         ) from exc
 
     return JobResponse.model_validate(job)
