@@ -230,7 +230,8 @@ def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_s
     print(url)
     locator = page.locator(".indy-location-container")
     address_div = locator.locator(".address")
-    
+    number = url.split(".")[-2].split("-")[-1]
+
     #get the first span in the address div, this contains the street address
     address_span = address_div.locator("span").nth(0)
     address = address_span.inner_text().strip()
@@ -261,7 +262,6 @@ def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_s
     tf = timezonefinder.TimezoneFinder()
     timezone = tf.timezone_at(lng=longitude, lat=latitude)
 
-    number = url.split(".")[-2].split("-")[-1]
     store = Store(
         chain_id=None,
         name=name,
@@ -292,13 +292,10 @@ def scrape_hannaford_items() -> None:
 
         page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
 
-        # Navigate to Hannaford online shopping page
         page.goto("https://www.hannaford.com/departments/")
-        #get all departments, these are located in divs with class main-nav-menu-level-3
         departments = page.locator("[class=main-nav-menu-level-3]")
         
         for department_index in range(departments.count()):
-            #go to each departments subdepartments
             department = departments.nth(department_index)
             subdepartments = department.locator("li")
             print(f"Scraping department {department_index} of {departments.count()}")
@@ -342,14 +339,9 @@ def scrape_hannaford_items() -> None:
 
 
 
-@shared_task(bind=True, name="workers.scraping.test_celery")
-def test_celery(self) -> str:
-    # Log a message that includes the Celery-assigned task id for traceability
-    logger.info("test_celery task executed (task_id=%s)", getattr(self.request, "id", None))
-    return "Celery is working!"
+
 
 if __name__ == "__main__":
 
-   #add_stores_to_db(stores_)
   scrape_price_chopper()
   # scrape_hannaford_items()

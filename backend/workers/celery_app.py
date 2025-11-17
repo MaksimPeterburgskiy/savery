@@ -1,6 +1,6 @@
 """Celery application factory configured for RabbitMQ."""
 
-from celery import Celery
+from celery import Celery, shared_task
 from celery.schedules import crontab
 from celery.utils.log import get_task_logger
 
@@ -20,9 +20,16 @@ celery_app.conf.update(
 
 celery_app.conf.beat_schedule = {
     
-    #scrape all hannaford stores every day at midnight eastern time
+    #scrape all hannaford stores every day at midnight utc
     "scrape-hannaford-every-24-hours": {
         "task": "workers.scraping.scrape_hannaford_stores",
+        "schedule": crontab(minute=0, hour=0),
+        "args": (),
+    },
+    
+    #scrape all price chopper stores every day at midnight utc
+    "scrape-price-chopper-every-24-hours": {
+        "task": "workers.scraping.scrape_price_chopper_stores",
         "schedule": crontab(minute=0, hour=0),
         "args": (),
     },
@@ -34,12 +41,6 @@ celery_app.conf.beat_schedule = {
     #     "args": (),
     # },
 
-    # "test-hannaford": {
-    #     "task": "workers.scraping.scrape_hannaford_stores",
-    #     "schedule": crontab(minute="*/1"),
-    #     "args": (),
-    # },
-    
     # "test-ping": {
     #     "task": "workers.health.ping",
     #      "schedule":5,
@@ -61,3 +62,10 @@ def ping() -> str:
     logger.info("ping task executed")
 
     return "pong"
+
+
+@shared_task(bind=True, name="workers.scraping.test_celery")
+def test_celery(self) -> str:
+    logger = get_task_logger(__name__)
+    logger.info("test_celery task executed (task_id=%s)", getattr(self.request, "id", None))
+    return "Celery is working!"
