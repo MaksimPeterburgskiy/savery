@@ -58,7 +58,10 @@ def sync_enqueue_job(monkeypatch):
 
         return "test-task"
 
-    monkeypatch.setattr("backend.app.api.routes.item_matches.enqueue_job", _fake_enqueue)
+    monkeypatch.setattr(
+        "backend.app.api.routes.planning.planning_job_endpoints.enqueue_job",
+        _fake_enqueue,
+    )
     return _fake_enqueue
 
 

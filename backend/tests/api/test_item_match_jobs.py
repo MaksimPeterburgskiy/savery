@@ -80,7 +80,10 @@ def test_create_item_match_job_enqueues_task(client: TestClient, route_plan: dic
         recorded_job_id = job_id if isinstance(job_id, UUID) else UUID(str(job_id))
         return "fake-task-id"
 
-    monkeypatch.setattr("backend.app.api.routes.item_matches.enqueue_job", _fake_enqueue)
+    monkeypatch.setattr(
+        "backend.app.api.routes.planning.planning_job_endpoints.enqueue_job",
+        _fake_enqueue,
+    )
 
     plan_id = route_plan["route_plan_id"]
     response = client.post(f"/api/route-plans/{plan_id}/item-match-jobs")
@@ -104,7 +107,10 @@ def test_create_item_match_job_rejects_when_active_exists(client: TestClient, ro
     plan_id = route_plan["route_plan_id"]
     _create_match_job(plan_id, status=JobStatus.PENDING)
 
-    monkeypatch.setattr("backend.app.api.routes.item_matches.enqueue_job", lambda job_id: None)
+    monkeypatch.setattr(
+        "backend.app.api.routes.planning.planning_job_endpoints.enqueue_job",
+        lambda job_id: None,
+    )
 
     response = client.post(f"/api/route-plans/{plan_id}/item-match-jobs")
     assert response.status_code == 409

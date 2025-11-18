@@ -1,215 +1,31 @@
-"""Route Plan endpoints."""
+"""Planning endpoints for route plans, selections, visits, and items."""
 
 from __future__ import annotations
 
-from collections import defaultdict
-from enum import Enum
 from typing import Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from geoalchemy2 import WKTElement
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from backend.app.api.routes.stores import StoreResponse
-from backend.app.api.utils.geography import extract_point_coordinates
+from backend.app.api.routes.catalog.catalog_schemas import StoreResponse
 from backend.app.dependencies import get_db
-from backend.app.models import OptimizationMode, PlanSelectedStore, RoutePlan, ShoppingList, Store
+from backend.app.models import PlanSelectedStore, PlanStoreVisit, RoutePlan, ShoppingList, Store, utcnow
+
+from .planning_helpers import (
+    _build_route_plan_responses,
+    _fetch_plan_items_by_visit,
+    _get_plan_item_or_404,
+    _get_plan_store_visit_or_404,
+    _get_route_plan_or_404,
+    _serialize_plan_items,
+)
+from .planning_schemas import PlanItemResponse, PlanItemUpdate, PlanStoreVisitResponse, RoutePlanCreate, RoutePlanResponse, RoutePlanUpdate, SelectedStoreCreate
 
 router = APIRouter()
-
-
-class RoutePlanResponse(BaseModel):
-    """Response model for route plan."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    list_id: UUID | None = None
-    selected_stores: list[StoreResponse] = Field(default_factory=list)
-    status: str
-    opt_mode: OptimizationMode
-    lowest_unit_price: bool
-    max_stores: int
-    user_longitude: float | None = None
-    user_latitude: float | None = None
-    total_price: float | None
-    total_distance_m: int | None
-    total_travel_sec: int | None
-
-    @classmethod
-    def from_model(
-        cls,
-        plan: RoutePlan,
-        user_geography_geojson: str | None,
-        store_payloads: Sequence[tuple[Store, str | None]],
-    ) -> "RoutePlanResponse":
-        """Instantiate a response from a RoutePlan and related geography."""
-
-        base_data = plan.model_dump(
-            include={
-                "id",
-                "list_id",
-                "status",
-                "opt_mode",
-                "lowest_unit_price",
-                "max_stores",
-                "total_price",
-                "total_distance_m",
-                "total_travel_sec",
-            }
-        )
-
-        coords = extract_point_coordinates(user_geography_geojson)
-        if coords is not None:
-            base_data.update({"user_longitude": coords[0], "user_latitude": coords[1]})
-
-        base_data["selected_stores"] = [
-            StoreResponse.from_model(store, geography_geojson) for store, geography_geojson in store_payloads
-        ]
-
-        return cls(**base_data)
-
-
-class RoutePlanStatus(str, Enum):
-    """Allowed status values for route plans."""
-
-    DRAFT = "draft"
-    MATCHED = "matched"
-    OPTIMIZED = "optimized"
-    COMPLETE = "complete"
-
-
-class RoutePlanCreate(BaseModel):
-    """Payload for creating a route plan."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    client_id: str | None = None
-    status: RoutePlanStatus = RoutePlanStatus.DRAFT
-    opt_mode: OptimizationMode = OptimizationMode.BALANCED
-    lowest_unit_price: bool = False
-    max_stores: int = Field(default=3, ge=1)
-    user_longitude: float | None = None
-    user_latitude: float | None = None
-    selected_store_ids: list[UUID] = Field(default_factory=list)
-
-    @field_validator("user_longitude")
-    @classmethod
-    def validate_longitude(cls, v: float | None) -> float | None:
-        """Validate longitude is within valid range [-180, 180]."""
-        if v is not None and (v < -180.0 or v > 180.0):
-            raise ValueError("user_longitude must be between -180 and 180 degrees")
-        return v
-
-    @field_validator("user_latitude")
-    @classmethod
-    def validate_latitude(cls, v: float | None) -> float | None:
-        """Validate latitude is within valid range [-90, 90]."""
-        if v is not None and (v < -90.0 or v > 90.0):
-            raise ValueError("user_latitude must be between -90 and 90 degrees")
-        return v
-
-    @model_validator(mode="after")
-    def validate_location(self) -> "RoutePlanCreate":
-        lon_set = self.user_longitude is not None
-        lat_set = self.user_latitude is not None
-        if lon_set ^ lat_set:
-            raise ValueError("user_longitude and user_latitude must be provided together")
-        return self
-
-
-class RoutePlanUpdate(BaseModel):
-    """Payload for updating a route plan."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    status: RoutePlanStatus | None = None
-    opt_mode: OptimizationMode | None = None
-    lowest_unit_price: bool | None = None
-    max_stores: int | None = Field(default=None, ge=1)
-    user_longitude: float | None = None
-    user_latitude: float | None = None
-    total_price: float | None = None
-    total_distance_m: int | None = None
-    total_travel_sec: int | None = None
-
-    @field_validator("user_longitude")
-    @classmethod
-    def validate_longitude(cls, v: float | None) -> float | None:
-        """Validate longitude is within valid range [-180, 180]."""
-        if v is not None and (v < -180.0 or v > 180.0):
-            raise ValueError("user_longitude must be between -180 and 180 degrees")
-        return v
-
-    @field_validator("user_latitude")
-    @classmethod
-    def validate_latitude(cls, v: float | None) -> float | None:
-        """Validate latitude is within valid range [-90, 90]."""
-        if v is not None and (v < -90.0 or v > 90.0):
-            raise ValueError("user_latitude must be between -90 and 90 degrees")
-        return v
-
-    @model_validator(mode="after")
-    def validate_location(self) -> "RoutePlanUpdate":
-        update_fields = self.model_dump(exclude_unset=True)
-        lon_present = "user_longitude" in update_fields
-        lat_present = "user_latitude" in update_fields
-        if lon_present ^ lat_present:
-            raise ValueError("user_longitude and user_latitude must be provided together when updating location")
-        return self
-
-
-class SelectedStoreCreate(BaseModel):
-    """Payload for adding a store selection to a plan."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    store_id: UUID
-
-
-def _build_route_plan_responses(
-    session: Session,
-    plans: Sequence[RoutePlan],
-) -> list[RoutePlanResponse]:
-    """Return serialized responses with related geography in batch."""
-
-    if not plans:
-        return []
-
-    plan_ids = [plan.id for plan in plans]
-
-    user_geo_map: dict[UUID, str | None] = {
-        plan_id: geojson
-        for plan_id, geojson in session.exec(
-            select(RoutePlan.id, func.ST_AsGeoJSON(RoutePlan.user_geography)).where(RoutePlan.id.in_(plan_ids))
-        )
-    }
-
-    store_map: dict[UUID, list[tuple[Store, str | None]]] = defaultdict(list)
-    selected_rows = session.exec(
-        select(
-            PlanSelectedStore.plan_id,
-            Store,
-            func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
-        )
-        .join(Store, PlanSelectedStore.store_id == Store.id)
-        .where(PlanSelectedStore.plan_id.in_(plan_ids))
-    )
-    for plan_id, store, geojson in selected_rows:
-        store_map[plan_id].append((store, geojson))
-
-    return [
-        RoutePlanResponse.from_model(
-            plan,
-            user_geo_map.get(plan.id),
-            store_map.get(plan.id, []),
-        )
-        for plan in plans
-    ]
 
 
 @router.post(
@@ -410,9 +226,7 @@ def add_selected_store(
         session.commit()
     except IntegrityError as exc:
         session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Store already selected for this plan"
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Store already selected for this plan") from exc
 
     session.refresh(route_plan)
     responses = _build_route_plan_responses(session, [route_plan])
@@ -450,3 +264,87 @@ def remove_selected_store(
 
     responses = _build_route_plan_responses(session, [route_plan])
     return responses[0]
+
+
+@router.get(
+    "/route-plans/{route_plan_id}/plan-store-visits",
+    response_model=Sequence[PlanStoreVisitResponse],
+    summary="List plan store visits for a route plan",
+)
+def list_plan_store_visits(
+    route_plan_id: UUID,
+    db: Session = Depends(get_db),
+) -> Sequence[PlanStoreVisitResponse]:
+    _get_route_plan_or_404(db, route_plan_id)
+
+    statement = (
+        select(
+            PlanStoreVisit,
+            Store,
+            func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
+        )
+        .join(Store, PlanStoreVisit.store_id == Store.id)
+        .where(PlanStoreVisit.plan_id == route_plan_id)
+        .order_by(PlanStoreVisit.sequence.asc())
+    )
+    rows = db.exec(statement).all()
+    visit_ids = [visit.id for visit, _, _ in rows]
+    plan_items_map = _fetch_plan_items_by_visit(db, visit_ids)
+
+    responses: list[PlanStoreVisitResponse] = []
+    for visit, store, geography_geojson in rows:
+        responses.append(
+            PlanStoreVisitResponse(
+                id=visit.id,
+                plan_id=visit.plan_id,
+                store=StoreResponse.from_model(store, geography_geojson),
+                sequence=visit.sequence,
+                travel_sec_from_prev=visit.travel_sec_from_prev,
+                distance_m_from_prev=visit.distance_m_from_prev,
+                subtotal_price=float(visit.subtotal_price) if visit.subtotal_price is not None else None,
+                plan_items=_serialize_plan_items(plan_items_map.get(visit.id, [])),
+            )
+        )
+
+    return responses
+
+
+@router.get(
+    "/route-plans/{route_plan_id}/plan-store-visits/{plan_store_visit_id}/plan-items",
+    response_model=Sequence[PlanItemResponse],
+    summary="List plan items for a store visit",
+)
+def list_plan_items_for_visit(
+    route_plan_id: UUID,
+    plan_store_visit_id: UUID,
+    db: Session = Depends(get_db),
+) -> Sequence[PlanItemResponse]:
+    _get_plan_store_visit_or_404(db, route_plan_id, plan_store_visit_id)
+
+    plan_items_map = _fetch_plan_items_by_visit(db, [plan_store_visit_id])
+    return _serialize_plan_items(plan_items_map.get(plan_store_visit_id, []))
+
+
+@router.patch(
+    "/route-plans/{route_plan_id}/plan-items/{plan_item_id}",
+    response_model=PlanItemResponse,
+    summary="Update plan item checklist status",
+)
+def update_plan_item_checked_status(
+    route_plan_id: UUID,
+    plan_item_id: UUID,
+    payload: PlanItemUpdate,
+    db: Session = Depends(get_db),
+) -> PlanItemResponse:
+    plan_item = _get_plan_item_or_404(db, route_plan_id, plan_item_id)
+
+    plan_item.is_checked = payload.is_checked
+    plan_item.checked_at = utcnow() if payload.is_checked else None
+    db.add(plan_item)
+    db.commit()
+
+    updated_plan_item = _get_plan_item_or_404(db, route_plan_id, plan_item_id)
+    return PlanItemResponse.model_validate(updated_plan_item)
+
+
+__all__ = ["router"]
