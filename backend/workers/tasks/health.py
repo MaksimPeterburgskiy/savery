@@ -8,13 +8,7 @@ from uuid import UUID
 from celery import shared_task
 
 from backend.app.config import settings
-from backend.app.tasks import (
-    get_job_status,
-    mark_job_failed,
-    mark_job_running,
-    mark_job_success,
-    record_job_progress,
-)
+from backend.app.tasks import mark_job_failed, mark_job_running, mark_job_success, record_job_progress
 
 
 @shared_task(bind=True, name="workers.health.run_demo", track_started=True)
@@ -26,21 +20,40 @@ def run_demo(self, job_id: str | UUID) -> dict[str, str | int]:
 
     try:
         # Mark the job as running and initialise the progress bar.
-        mark_job_running(job_id, total=100, message="Health demo task started")
-        self.update_state(state="STARTED", meta=get_job_status(job_id))
+        mark_job_running(
+            job_id,
+            total=100,
+            message="Health demo task started",
+            task=self,
+            include_status=True,
+        )
 
         for percent in steps:
             if percent:
                 # Simulate a bit of work before reporting the next milestone.
                 if delay_seconds:
                     time.sleep(delay_seconds)
-            record_job_progress(job_id, current=percent, message=f"Reached {percent}% complete")
-            self.update_state(state="PROGRESS", meta=get_job_status(job_id))
+            record_job_progress(
+                job_id,
+                current=percent,
+                message=f"Reached {percent}% complete",
+                task=self,
+                include_status=True,
+            )
 
-        mark_job_success(job_id, message="Health demo task finished")
-        self.update_state(state="SUCCESS", meta=get_job_status(job_id))
+        mark_job_success(
+            job_id,
+            message="Health demo task finished",
+            task=self,
+            include_status=True,
+        )
         return {"job_id": str(job_id), "progress": 100}
     except Exception as exc:  # noqa: BLE001 - surface the failure after recording it
-        mark_job_failed(job_id, message=str(exc))
-        self.update_state(state="FAILURE", meta=get_job_status(job_id))
+        mark_job_failed(
+            job_id,
+            message=str(exc),
+            task=self,
+            include_status=True,
+            extra_meta={"error": str(exc)},
+        )
         raise

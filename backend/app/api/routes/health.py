@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,6 +31,8 @@ class JobStatusResponse(BaseModel):
     progress_total: int | None = None
     task_id: str | None = None
     message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class DemoTaskRequest(BaseModel):
@@ -39,7 +42,7 @@ class DemoTaskRequest(BaseModel):
 
 
 @router.get("/health", summary="Service health check")
-async def health_check() -> dict[str, str]:
+def health_check() -> dict[str, str]:
     """Return a simple payload confirming the service is up."""
 
     return {
@@ -54,7 +57,7 @@ async def health_check() -> dict[str, str]:
     response_model=JobStatusResponse,
     summary="Kick off the demo health Celery task",
 )
-async def trigger_demo_task(
+def trigger_demo_task(
     payload: DemoTaskRequest,
     session: Session = Depends(get_db),
 ) -> JobStatusResponse:
@@ -78,7 +81,7 @@ async def trigger_demo_task(
     response_model=JobStatusResponse,
     summary="Retrieve the latest status for a demo health task",
 )
-async def get_demo_task_status(job_id: UUID) -> JobStatusResponse:
+def get_demo_task_status(job_id: UUID) -> JobStatusResponse:
     """Return the persisted job state if it exists."""
 
     try:

@@ -17,3 +17,4 @@ playwright
 haversine
 pgvector
 geoalchemy2
+inflect

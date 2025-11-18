@@ -25,7 +25,9 @@
       "subProcess": true,
       "justMyCode": true,
       "consoleTitle": "Web API",
-      "postDebugTask": "stop services (postgres+rabbitmq+dragonfly)",
+      "preLaunchTask": "terminate uvicorn web api",
+      "suppressMultipleSessionWarning": true,
+      "postDebugTask": "stop services (postgres+rabbitmq+dragonfly)"
     },
     {
       "name": "Celery",
@@ -70,7 +72,9 @@
         "solo"
       ],
       "justMyCode": true,
-      "consoleTitle": "Celery Worker"
+      "consoleTitle": "Celery",
+      "preLaunchTask": "terminate celery worker",
+      "suppressMultipleSessionWarning": true
     },
     {
       "name": "Expo",

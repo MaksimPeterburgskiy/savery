@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     celery_result_backend: str = "rpc://"
     celery_health_task: str = "workers.health.run_demo"
     celery_demo_task_delay_seconds: float = 1.0
+    
+    celery_match_task: str = "workers.item_matches.create_item_match_candidates"
+    celery_fanout_task: str = "workers.item_matches.fanout_candidates_to_item_matches"
 
     task_status_base_url: Optional[str] = None
 

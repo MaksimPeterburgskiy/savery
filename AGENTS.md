@@ -42,6 +42,7 @@ Make sure to use a venv (one should already exist in the backend folder) when wo
 - `backend/tools/stop_backend.py`: Convenience helper that reads the saved runner state, terminates uvicorn/Celery, stops the Docker containers, and clears the state file. Useful for manual shutdowns if `run_backend.py` is interrupted.
 
 ## Running Backend Tests
+- Ensure the backend stack is running first by calling `python backend/tools/run_backend.py` so Postgres, RabbitMQ, Dragonfly, uvicorn, and Celery are up before pytest touches them.
 - Activate the backend virtual environment first: `source backend/.venv/bin/activate`. If the environment is missing, recreate it with `python backend/tools/make_env.py`.
 - Run the suite from the backend folder: `cd backend && pytest`. Use flags such as `-k <expression>` for filtering or `--cov=app --cov-report=term-missing` for coverage.
 - Deactivate the environment when finished with `deactivate`.

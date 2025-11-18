@@ -3,7 +3,33 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "ensure docker desktop running",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -euo pipefail; if ! command -v docker >/dev/null 2>&1; then echo \"Docker CLI not found; install Docker Desktop.\" >&2; exit 1; fi; if docker info >/dev/null 2>&1; then exit 0; fi; docker desktop start >/dev/null 2>&1 || true; for i in {1..30}; do if docker info >/dev/null 2>&1; then exit 0; fi; sleep 2; done; echo \"Docker Desktop did not become ready in time.\" >&2; exit 1"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "group": "Docker",
+        "reveal": "always"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference = 'Stop'; if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Write-Error 'Docker CLI not found; install Docker Desktop.'; exit 1 }; try { docker info | Out-Null; exit 0 } catch { } docker desktop start | Out-Null; for ($i = 0; $i -lt 30; $i++) { try { docker info | Out-Null; exit 0 } catch { Start-Sleep -Seconds 2 } } Write-Error 'Docker Desktop did not become ready in time.'; exit 1"
+        ]
+      }
+    },
+    {
       "label": "start dragonfly",
+      "dependsOn": [
+        "ensure docker desktop running"
+      ],
       "type": "shell",
       "command": "bash",
       "args": [
@@ -27,6 +53,9 @@
     },
     {
       "label": "start postgres",
+      "dependsOn": [
+        "ensure docker desktop running"
+      ],
       "type": "shell",
       "command": "bash",
       "args": [
@@ -49,6 +78,9 @@
     },
     {
       "label": "start rabbitmq",
+      "dependsOn": [
+        "ensure docker desktop running"
+      ],
       "type": "shell",
       "command": "bash",
       "args": [
@@ -66,6 +98,50 @@
           "-NonInteractive",
           "-Command",
           "docker container inspect 'savery-rabbit' > $null 2>&1; if ($LASTEXITCODE -eq 0) { docker start 'savery-rabbit' | Out-Null } else { docker run -d --name 'savery-rabbit' -p 5672:5672 -p 15672:15672 rabbitmq:3-management | Out-Null }"
+        ]
+      }
+    },
+    {
+      "label": "terminate uvicorn web api",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "pkill -f \"uvicorn.*backend\\.app\\.main:app\" >/dev/null 2>&1 || true"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "never"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference = 'SilentlyContinue'; $pattern = 'uvicorn.*backend\\.app\\.main:app'; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; exit 0"
+        ]
+      }
+    },
+    {
+      "label": "terminate celery worker",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "pkill -f \"celery.*backend\\.workers\\.celery_app:celery_app\" >/dev/null 2>&1 || true"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "never"
+      },
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference = 'SilentlyContinue'; $pattern = 'celery.*backend\\.workers\\.celery_app:celery_app'; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; exit 0"
         ]
       }
     },
