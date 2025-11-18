@@ -1,5 +1,5 @@
 """API route modules."""
 
-from . import health, item_matches, shopping_lists, stores, route_plans
+from . import catalog, health, lists, planning
 
-__all__ = ["health", "item_matches", "route_plans", "shopping_lists", "stores"]
+__all__ = ["catalog", "health", "lists", "planning"]
