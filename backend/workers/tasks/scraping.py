@@ -22,7 +22,6 @@ class StoreProduct:
     weight = str
     price = float
 
-# module-level task logger
 logger = get_task_logger(__name__)
 
 
@@ -186,22 +185,19 @@ def scrape_price_chopper() -> None:
                 page.goto(city_url)
                 page.wait_for_selector("ul.map-list.height-auto", timeout=2000)
                 ul = page.locator("ul.map-list.height-auto")
-                stores = ul.locator("li.map-list-item-wrap")
-                store_count = stores.count()
+                stores_wrapper = ul.locator("li.map-list-item-wrap")
+                store_count = stores_wrapper.count()
 
                 for j in range(store_count):
                     page.goto(city_url)
                     print(f"Scraping store {j+1} of {store_count} in city")
-                    location = stores.nth(j)
+                    location = stores_wrapper.nth(j)
                     url_div = location.locator(".map-list-item-header")
                     url = url_div.locator("a").get_attribute("href")
                     name = location.locator(".location-name").inner_text().strip()
                     store = get_store_date_price_chopper(page, url, name, price_chopper_state)
                     stores.append(store)
-                    if j == 3:
-                        break    
-                if i == 2:
-                    break
+
                 
     print(f"Total Price Chopper stores scraped: {len(stores)}")
     with session_scope() as session:
