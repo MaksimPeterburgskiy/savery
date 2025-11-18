@@ -119,7 +119,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$ErrorActionPreference = 'SilentlyContinue'; $pattern = 'uvicorn.*backend\\.app\\.main:app'; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; exit 0"
+          "exit 0"
         ]
       }
     },
@@ -141,7 +141,7 @@
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "$ErrorActionPreference = 'SilentlyContinue'; $pattern = 'celery.*backend\\.workers\\.celery_app:celery_app'; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; exit 0"
+          "exit 0"
         ]
       }
     },
