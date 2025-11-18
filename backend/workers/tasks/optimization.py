@@ -19,6 +19,7 @@ from backend.app.models import (
     OptimizationMode,
     PlanSelectedStore,
     PlanStoreVisit,
+    Store,
 )
 from backend.app.tasks import (
     get_job_status,
@@ -44,6 +45,7 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
             raise ValueError(f"Job with ID {job_id} does not exist")
 
         item_matches: list[ItemMatch] = []
+        stores: list[Store] = []
         match job.plan.opt_mode:
             case OptimizationMode.PRICE:
                 for list_item in job.plan.list.list_items:
@@ -59,6 +61,15 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
                         )
                     )
                     item_matches.append(list_item.item_matches[0])
+                user_loc = extract_point_coordinates(job.plan.user_geography)
+                def store_distance(s: Store) -> float:
+                    store_loc = extract_point_coordinates(s.geography)
+                    # We are using (long, lat) order in geography, but haversine expects (lat, long)
+                    return haversine(
+                        (user_loc[1], user_loc[0]), (store_loc[1], store_loc[0])
+                    )
+                stores = list(set(im.store for im in item_matches))
+                stores.sort(key=store_distance)
 
             case OptimizationMode.SPEED:
                 user_loc = extract_point_coordinates(job.plan.user_geography)
@@ -84,14 +95,5 @@ def run_optimization(self, job_id: str | UUID) -> dict[str, str | int]:
             case _:
                 raise ValueError(f"Unknown optimization mode: {job.plan.opt_mode}")
 
-        # TODO: optimize stores visit order; for now, just make sure all stores are included
-        # need to rework a lot; need to ensure all items for each store are assoc., probably use dict[store_id, PlanStoreVisit]
-        job.plan.store_visits = list(
-            set(
-                [
-                    PlanStoreVisit(sequence=i, store=im.store)
-                    for i, im in enumerate(item_matches)
-                ]
-            )
-        )
+        job.plan.store_visits = [PlanStoreVisit(sequence=i, store=s) for (s, i) in stores]
         session.commit()
