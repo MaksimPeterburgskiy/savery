@@ -72,6 +72,7 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                     store = get_store_data_hannaford(page, f"https://stores.hannaford.com/{city_url}", city_name, hannaford_state)
 
                     stores.append(store)
+                #TODO REMOVE THIS BEFORE PRODUCTION
                 if len(stores) == 10:
                     with session_scope() as session:
                         #add hannaford store chain if it doesn't exist
@@ -92,7 +93,6 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                             session.add(store)
                         session.commit()
                     return
-                   # return stores
         context.close()
         browser.close()
         
@@ -118,14 +118,12 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                     inserted_ids.append(str(store.id))
                 except Exception:
                     inserted_ids.append(None)
-
+            
             return {"chain_id": str(existing_chain.id), "count": len(stores), "store_ids": inserted_ids}
-        #return stores
 
-
+#helper function to get store data from hannaford store page
 def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: str) -> Store:
     page.goto(url)
-    print(url)
     name = page.locator("[class=Core-storeName]").inner_text().strip()    
     number = url.split("/")[-1]
     address_list = page.locator("[class=c-bread-crumbs-list]")
@@ -176,7 +174,6 @@ def scrape_price_chopper() -> None:
         for price_chopper_state in price_chopper_states:
             page.goto(f"https://www.pricechopper.com/stores/{price_chopper_state.lower()}")
             print(f"Scraping Price Chopper stores in {price_chopper_state}")
-            #get all cities in the state
             locations_container = page.locator("[class=locations-list-container]")
             cities = locations_container.locator("li")
             count = cities.count()
@@ -189,13 +186,13 @@ def scrape_price_chopper() -> None:
                 page.goto(city_url)
                 page.wait_for_selector("ul.map-list.height-auto", timeout=2000)
                 ul = page.locator("ul.map-list.height-auto")
-                items = ul.locator("li.map-list-item-wrap")
-                store_count = items.count()
+                stores = ul.locator("li.map-list-item-wrap")
+                store_count = stores.count()
 
                 for j in range(store_count):
                     page.goto(city_url)
                     print(f"Scraping store {j+1} of {store_count} in city")
-                    location = items.nth(j)
+                    location = stores.nth(j)
                     url_div = location.locator(".map-list-item-header")
                     url = url_div.locator("a").get_attribute("href")
                     name = location.locator(".location-name").inner_text().strip()
@@ -222,7 +219,6 @@ def scrape_price_chopper() -> None:
             store.chain_id = existing_chain.id
             session.add(store)
         session.commit()
-    # Shouldn't reach here, but return a minimal summary if so
     return {"chain": "Price Chopper", "count": len(stores)}
 
 def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_state: str) -> Store:
@@ -232,13 +228,10 @@ def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_s
     address_div = locator.locator(".address")
     number = url.split(".")[-2].split("-")[-1]
 
-    #get the first span in the address div, this contains the street address
     address_span = address_div.locator("span").nth(0)
     address = address_span.inner_text().strip()
-    #get the second span in the address div, this contains the city, state zip
     city_state_zip_span = address_div.locator("span").nth(1)
     city_state_zip = city_state_zip_span.inner_text().strip()
-    #split city_state_zip into city, state, zip
     city_parts = city_state_zip.split(",")
     city_name = city_parts[0].strip()
     state_zip = city_parts[1].strip().split(" ")
@@ -251,12 +244,10 @@ def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_s
     script_locator = page.locator("script[type='application/ld+json']")
     script_content = script_locator.inner_text().strip()
     json_data = json.loads(script_content)
-    print(type(json_data))
     for obj in json_data:
         if "geo" in obj:
             latitude = obj["geo"]["latitude"]
             longitude = obj["geo"]["longitude"]
-        
         if "openingHours" in obj:
             hours = obj["openingHours"]
     tf = timezonefinder.TimezoneFinder()
