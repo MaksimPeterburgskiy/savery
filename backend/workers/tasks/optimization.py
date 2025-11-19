@@ -7,10 +7,7 @@ from uuid import UUID
 from celery import shared_task
 from haversine import haversine
 
-from backend.app.api.utils.geography import (
-    extract_point_coordinates,
-    haversine_distance,
-)
+from backend.app.api.utils.geography import extract_point_coordinates
 from backend.app.config import settings
 from backend.app.db import session_scope
 from backend.app.models import (
