@@ -25,6 +25,7 @@ class StubJobStatusManager:
         self.queue: asyncio.Queue | None = None
         self.loop: asyncio.AbstractEventLoop | None = None
         self.enabled = True
+        self.subscribe_result = True
 
     async def start(self) -> None:  # pragma: no cover - hook used in lifespan
         return None
@@ -35,7 +36,7 @@ class StubJobStatusManager:
     async def subscribe(self, task_id: str, queue: asyncio.Queue) -> bool:
         self.queue = queue
         self.loop = asyncio.get_running_loop()
-        return True
+        return self.subscribe_result
 
     async def unsubscribe(self, task_id: str, queue: asyncio.Queue) -> None:
         return None
@@ -145,6 +146,44 @@ def test_job_status_websocket_rejects_wrong_plan(job_record: tuple[UUID, UUID], 
         with pytest.raises(WebSocketDisconnect) as excinfo:
             with client.websocket_connect(f"/api/ws/jobs/{job_id}?plan_id={wrong_plan}") as websocket:
                 websocket.receive_text()
+
+    assert excinfo.value.code == 4404
+
+
+def test_job_status_websocket_closes_when_job_missing(
+    job_record: tuple[UUID, UUID], stub_job_status_manager: StubJobStatusManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WebSocket should close with 4404 if the job disappears mid-stream."""
+
+    job_id, plan_id = job_record
+    monkeypatch.setattr(tasks_websocket, "DB_POLL_INTERVAL_SECONDS", 0.01)
+
+    with TestClient(create_app()) as client:
+        with pytest.raises(WebSocketDisconnect) as excinfo:
+            with client.websocket_connect(f"/api/ws/jobs/{job_id}?plan_id={plan_id}") as websocket:
+                websocket.receive_json()
+                _cleanup_job(job_id, plan_id)
+                websocket.receive_text()
+
+    assert excinfo.value.code == 4404
+
+
+def test_job_status_websocket_rejects_plan_mismatch_during_stream(
+    job_record: tuple[UUID, UUID], stub_job_status_manager: StubJobStatusManager
+) -> None:
+    """If broker payloads reference a different plan, the WebSocket should be closed."""
+
+    job_id, plan_id = job_record
+
+    with TestClient(create_app()) as client:
+        with pytest.raises(WebSocketDisconnect) as excinfo:
+            with client.websocket_connect(f"/api/ws/jobs/{job_id}?plan_id={plan_id}") as websocket:
+                initial = websocket.receive_json()
+                mismatched_payload = {**initial, "plan_id": str(uuid4()), "status": JobStatus.RUNNING.value}
+                stub_job_status_manager.push(
+                    {"task_id": initial["task_id"], "status": "PROGRESS", "result": mismatched_payload}
+                )
+                websocket.receive_json()
 
     assert excinfo.value.code == 4404
 
