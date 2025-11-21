@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/savery"
 
     celery_broker_url: str = "amqp://guest:guest@localhost//"
-    celery_result_backend: str = "rpc://"
+    celery_result_backend: str = "redis://localhost:6379/0"
     celery_health_task: str = "workers.health.run_demo"
     celery_demo_task_delay_seconds: float = 0.01
 
