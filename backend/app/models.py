@@ -449,13 +449,6 @@ class PlanItem(Base, table=True):
 
 class Job(Base, table=True):
     __tablename__ = "jobs"
-    __table_args__ = (
-        UniqueConstraint(
-            "plan_id",
-            "stage",
-            name="uq_jobs_plan_stage",
-        ),
-    )
 
     plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
     plan: RoutePlan | None = Relationship(back_populates="jobs")
@@ -488,4 +481,11 @@ Index(
     "ix_price_entries_store_product_fetched_at",
     PriceEntry.store_product_id,
     PriceEntry.fetched_at,
+)
+Index(
+    "ix_jobs_plan_stage_active",
+    Job.plan_id,
+    Job.stage,
+    unique=True,
+    postgresql_where=Job.status.in_((JobStatus.PENDING, JobStatus.RUNNING)),
 )

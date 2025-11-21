@@ -160,6 +160,34 @@ def list_plan_route_jobs(
 
 
 @router.get(
+    "/route-plans/{route_plan_id}/plan-route-jobs/active",
+    response_model=JobResponse,
+    summary="Get plan route job thats active for the route plan",
+)
+def get_plan_route_job_active(
+    route_plan_id: UUID,
+    db: Session = Depends(get_db),
+) -> JobResponse:
+
+    _get_route_plan_or_404(db, route_plan_id)
+
+    statement = (
+        select(Job)
+        .where(
+            Job.plan_id == route_plan_id,
+            Job.stage == JobStage.OPTIMIZE,
+            Job.status.in_((JobStatus.PENDING, JobStatus.RUNNING)),
+        )
+        .order_by(Job.updated_at.desc())
+    )
+
+    result = db.exec(statement).first()
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active plan route job found")
+    return JobResponse.model_validate(result)
+
+
+@router.get(
     "/route-plans/{route_plan_id}/plan-route-jobs/{job_id}",
     response_model=JobResponse,
     summary="Get plan route job by ID",
@@ -185,34 +213,6 @@ def get_plan_route_job_by_id(
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Route plan job not found")
 
-    return JobResponse.model_validate(result)
-
-
-@router.get(
-    "/route-plans/{route_plan_id}/plan-route-jobs/active",
-    response_model=JobResponse,
-    summary="Get plan route job thats active for the route plan",
-)
-def get_plan_route_job_active(
-    route_plan_id: UUID,
-    db: Session = Depends(get_db),
-) -> JobResponse:
-
-    _get_route_plan_or_404(db, route_plan_id)
-
-    statement = (
-        select(Job)
-        .where(
-            Job.plan_id == route_plan_id,
-            Job.stage == JobStage.OPTIMIZE,
-            Job.status.in_((JobStatus.PENDING, JobStatus.RUNNING)),
-        )
-        .order_by(Job.updated_at.desc())
-    )
-
-    result = db.exec(statement).first()
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active plan route job found")
     return JobResponse.model_validate(result)
 
 
@@ -357,35 +357,6 @@ def list_item_match_jobs(
 
 
 @router.get(
-    "/route-plans/{route_plan_id}/item-match-jobs/{job_id}",
-    response_model=JobResponse,
-    summary="Get item match job by ID",
-)
-def get_item_match_job_by_id(
-    route_plan_id: UUID,
-    job_id: UUID,
-    db: Session = Depends(get_db),
-) -> JobResponse:
-
-    _get_route_plan_or_404(db, route_plan_id)
-
-    statement = (
-        select(Job)
-        .where(
-            Job.plan_id == route_plan_id,
-            Job.id == job_id,
-            Job.stage == JobStage.MATCH,
-        )
-        .order_by(Job.updated_at.desc())
-    )
-    result = db.exec(statement).first()
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item match job not found")
-
-    return JobResponse.model_validate(result)
-
-
-@router.get(
     "/route-plans/{route_plan_id}/item-match-jobs/active",
     response_model=JobResponse,
     summary="Get item match job thats active for the route plan",
@@ -410,6 +381,35 @@ def get_item_match_job_active(
     result = db.exec(statement).first()
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active item match job found")
+
+    return JobResponse.model_validate(result)
+
+
+@router.get(
+    "/route-plans/{route_plan_id}/item-match-jobs/{job_id}",
+    response_model=JobResponse,
+    summary="Get item match job by ID",
+)
+def get_item_match_job_by_id(
+    route_plan_id: UUID,
+    job_id: UUID,
+    db: Session = Depends(get_db),
+) -> JobResponse:
+
+    _get_route_plan_or_404(db, route_plan_id)
+
+    statement = (
+        select(Job)
+        .where(
+            Job.plan_id == route_plan_id,
+            Job.id == job_id,
+            Job.stage == JobStage.MATCH,
+        )
+        .order_by(Job.updated_at.desc())
+    )
+    result = db.exec(statement).first()
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item match job not found")
 
     return JobResponse.model_validate(result)
 
@@ -555,35 +555,6 @@ def list_item_fanout_jobs(
 
 
 @router.get(
-    "/route-plans/{route_plan_id}/item-fanout-jobs/{job_id}",
-    response_model=JobResponse,
-    summary="Get item match fanout job by ID",
-)
-def get_item_fanout_job_by_id(
-    route_plan_id: UUID,
-    job_id: UUID,
-    db: Session = Depends(get_db),
-) -> JobResponse:
-
-    _get_route_plan_or_404(db, route_plan_id)
-
-    statement = (
-        select(Job)
-        .where(
-            Job.plan_id == route_plan_id,
-            Job.id == job_id,
-            Job.stage == JobStage.FANOUT,
-        )
-        .order_by(Job.updated_at.desc())
-    )
-    result = db.exec(statement).first()
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item fanout job not found")
-
-    return JobResponse.model_validate(result)
-
-
-@router.get(
     "/route-plans/{route_plan_id}/item-fanout-jobs/active",
     response_model=JobResponse,
     summary="Get item match fanout job thats active for the route plan",
@@ -608,6 +579,35 @@ def get_item_fanout_job_active(
     result = db.exec(statement).first()
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active item fanout job found")
+
+    return JobResponse.model_validate(result)
+
+
+@router.get(
+    "/route-plans/{route_plan_id}/item-fanout-jobs/{job_id}",
+    response_model=JobResponse,
+    summary="Get item match fanout job by ID",
+)
+def get_item_fanout_job_by_id(
+    route_plan_id: UUID,
+    job_id: UUID,
+    db: Session = Depends(get_db),
+) -> JobResponse:
+
+    _get_route_plan_or_404(db, route_plan_id)
+
+    statement = (
+        select(Job)
+        .where(
+            Job.plan_id == route_plan_id,
+            Job.id == job_id,
+            Job.stage == JobStage.FANOUT,
+        )
+        .order_by(Job.updated_at.desc())
+    )
+    result = db.exec(statement).first()
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item fanout job not found")
 
     return JobResponse.model_validate(result)
 
