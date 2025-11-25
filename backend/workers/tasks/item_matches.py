@@ -12,6 +12,101 @@ from backend.app.db import session_scope
 from backend.app.models import ItemMatch, ItemMatchCandidate, Job, JobStage, Product, RoutePlan, ShoppingList, StoreProduct
 from backend.app.tasks import mark_job_failed, mark_job_running, mark_job_success, record_job_progress
 
+# Scoring feature flags
+ENABLE_BRAND_EXCLUSION = True
+ENABLE_POSITION_WEIGHTING = True
+
+# Position weights for position weighting
+POSITION_WEIGHTS = [1.0, 0.9, 0.8, 0.7, 0.6]
+DEFAULT_WEIGHT = 0.5
+
+
+def should_exclude_brand(canon_terms: list[str], brand: str | None) -> bool:
+    """
+    Determine if brand should be excluded from scoring.
+
+    Returns False (don't exclude) if user's search terms overlap with brand.
+    Handles genericized trademarks like "kleenex", "bandaid", etc.
+    """
+    if not brand:
+        return False
+
+    # Normalize brand: lowercase, split hyphenated/apostrophe words
+    brand_normalized = brand.lower().replace("-", " ").replace("'", "")
+    brand_terms = set(brand_normalized.split())
+    canon_lower = {t.lower() for t in canon_terms}
+
+    # Check 1: Direct term overlap (e.g., "kleenex" in ["kleenex"])
+    if brand_terms & canon_lower:
+        return False
+
+    # Check 2: Substring match for compound terms
+    # Handles "bandaid" matching "Band-Aid" (brand_normalized = "band aid")
+    for canon_term in canon_lower:
+        if canon_term in brand_normalized or brand_normalized.replace(" ", "") in canon_term:
+            return False
+
+    return True
+
+
+def remove_brand_from_name(product_name: str, brand: str | None) -> str:
+    """Remove brand prefix from product name for scoring purposes."""
+    if not brand:
+        return product_name
+
+    name_lower = product_name.lower()
+    brand_lower = brand.lower()
+
+    if name_lower.startswith(brand_lower):
+        return product_name[len(brand) :].strip()
+
+    return product_name
+
+
+def get_position_weight(position: int) -> float:
+    """Get weight for a term at given position (0-indexed)."""
+    if position < len(POSITION_WEIGHTS):
+        return POSITION_WEIGHTS[position]
+    return DEFAULT_WEIGHT
+
+
+def calculate_match_score(
+    canon_terms: list[str],
+    product_name: str,
+    product_brand: str | None = None,
+) -> float:
+    """
+    Calculate match score for a product candidate.
+
+    Args:
+        canon_terms: Normalized search terms from user's list item
+        product_name: Product name to score against
+        product_brand: Product brand (optional, for brand exclusion)
+
+    Returns:
+        Score from 0-100 where 100 is a perfect match
+    """
+    # Only exclude brand if user isn't searching for it
+    scoring_name = product_name
+    if ENABLE_BRAND_EXCLUSION and should_exclude_brand(canon_terms, product_brand):
+        scoring_name = remove_brand_from_name(product_name, product_brand)
+
+    product_terms = [t.lower() for t in scoring_name.split() if t]
+    if not product_terms:
+        return 0.0
+
+    canon_terms_lower = {t.lower() for t in canon_terms}
+
+    if ENABLE_POSITION_WEIGHTING:
+        total_weight = sum(get_position_weight(i) for i in range(len(product_terms)))
+        matched_weight = sum(get_position_weight(i) for i, term in enumerate(product_terms) if term in canon_terms_lower)
+        score = (matched_weight / total_weight) * 100
+    else:
+        coverage = len(canon_terms) / len(product_terms)
+        score = min(coverage, 1.0) * 100
+
+    return round(score, 2)
+
 
 @shared_task(bind=True, name="workers.item_matches.create_item_match_candidates", track_started=True)
 def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
@@ -63,11 +158,11 @@ def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
                 if not canon_terms:
                     raise ValueError(f"Item {item.id} has no usable canonical terms for matching")
 
-                matched_product_ids: set[UUID] = set()
+                matched_products: dict[UUID, tuple[str, str | None]] = {}
                 for store in selected_stores:
                     # select products at this store where name contains all canon terms
                     statement = (
-                        select(Product.id)
+                        select(Product.id, Product.name, Product.brand)
                         .join(StoreProduct, StoreProduct.product_id == Product.id)
                         .where(
                             StoreProduct.store_id == store.store_id,
@@ -75,15 +170,18 @@ def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
                         )
                     )
                     matches = session.exec(statement).all()
-                    matched_product_ids.update(matches)
+                    for product_id, product_name, product_brand in matches:
+                        if product_id not in matched_products:
+                            matched_products[product_id] = (product_name, product_brand)
 
                 # create item match candidates for matched products
-                for product_id in matched_product_ids:
+                for product_id, (product_name, product_brand) in matched_products.items():
+                    score = calculate_match_score(canon_terms, product_name, product_brand)
                     item_match_candidate = ItemMatchCandidate(
                         plan_id=plan.id,
                         list_item_id=item.id,
                         product_id=product_id,
-                        score=100,  # placeholder score
+                        score=score,
                     )
                     session.add(item_match_candidate)
                 session.commit()
