@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from uuid import UUID
 
 from celery import shared_task
@@ -21,20 +22,37 @@ POSITION_WEIGHTS = [1.0, 0.9, 0.8, 0.7, 0.6]
 DEFAULT_WEIGHT = 0.5
 
 
+def normalize_text_for_matching(text: str) -> str:
+    """Normalize text for matching, handling non-ASCII characters.
+
+    Handles brands like "Häagen-Dazs", "José Olé" by:
+    1. NFKD normalization to decompose characters
+    2. Removing combining marks (accents)
+    3. Lowercasing and normalizing separators
+    """
+    # NFKD normalization decomposes characters (é -> e + combining accent)
+    normalized = unicodedata.normalize("NFKD", text)
+    # Remove combining marks (accents, umlauts, etc.)
+    ascii_compatible = "".join(c for c in normalized if not unicodedata.combining(c))
+    # Lowercase and normalize common separators
+    return ascii_compatible.lower().replace("-", " ").replace("'", "")
+
+
 def should_exclude_brand(canon_terms: list[str], brand: str | None) -> bool:
     """
     Determine if brand should be excluded from scoring.
 
     Returns False (don't exclude) if user's search terms overlap with brand.
     Handles genericized trademarks like "kleenex", "bandaid", etc.
+    Also handles non-ASCII brand names like "Häagen-Dazs", "José Olé".
     """
     if not brand:
         return False
 
-    # Normalize brand: lowercase, split hyphenated/apostrophe words
-    brand_normalized = brand.lower().replace("-", " ").replace("'", "")
+    # Normalize brand: handle non-ASCII, lowercase, split hyphenated/apostrophe words
+    brand_normalized = normalize_text_for_matching(brand)
     brand_terms = set(brand_normalized.split())
-    canon_lower = {t.lower() for t in canon_terms}
+    canon_lower = {normalize_text_for_matching(t) for t in canon_terms}
 
     # Check 1: Direct term overlap (e.g., "kleenex" in ["kleenex"])
     if brand_terms & canon_lower:
@@ -50,15 +68,32 @@ def should_exclude_brand(canon_terms: list[str], brand: str | None) -> bool:
 
 
 def remove_brand_from_name(product_name: str, brand: str | None) -> str:
-    """Remove brand prefix from product name for scoring purposes."""
+    """Remove brand prefix from product name for scoring purposes.
+
+    Handles non-ASCII characters by using normalized comparison.
+    """
     if not brand:
         return product_name
 
-    name_lower = product_name.lower()
-    brand_lower = brand.lower()
+    name_normalized = normalize_text_for_matching(product_name)
+    brand_normalized = normalize_text_for_matching(brand)
 
-    if name_lower.startswith(brand_lower):
-        return product_name[len(brand) :].strip()
+    if name_normalized.startswith(brand_normalized):
+        # Find the actual position to cut by matching normalized prefix length
+        # We need to find where in the original string the brand ends
+        chars_consumed = 0
+        normalized_pos = 0
+        target_normalized_len = len(brand_normalized)
+
+        for i, char in enumerate(product_name):
+            char_normalized = normalize_text_for_matching(char)
+            if char_normalized:  # Skip if char normalizes to empty (e.g., combining marks)
+                normalized_pos += len(char_normalized)
+            chars_consumed = i + 1
+            if normalized_pos >= target_normalized_len:
+                break
+
+        return product_name[chars_consumed:].strip()
 
     return product_name
 
@@ -110,7 +145,7 @@ def calculate_match_score(
 
 @shared_task(bind=True, name="workers.item_matches.create_item_match_candidates", track_started=True)
 def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
-    """Create Item Matche Candidates for each List Item job."""
+    """Create Item Match Candidates for each List Item in a route plan."""
 
     try:
         # get job details from DB and preload related data

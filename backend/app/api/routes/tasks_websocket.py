@@ -18,7 +18,7 @@ from ...tasks import get_job_status
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-TERMINAL_STATUSES = {JobStatus.SUCCESS.value, JobStatus.FAILED.value}
+TERMINAL_STATUSES = {JobStatus.SUCCESS.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}
 DB_POLL_INTERVAL_SECONDS = 1.0
 MAX_DB_POLL_INTERVAL_SECONDS = 5.0
 QUEUE_MAXSIZE = 100
@@ -118,7 +118,7 @@ async def stream_job_status(websocket: WebSocket, job_id: UUID, plan_id: UUID | 
     except Exception as exc:  # pragma: no cover - defensive logging for unexpected failures
         logger.exception("Unhandled error in job status websocket for %s: %s", job_id, exc)
         try:
-            await websocket.send_json({"error": "Internal server error", "message": str(exc)})
+            await websocket.send_json({"error": "Internal server error", "message": "An unexpected error occurred"})
             await websocket.close(code=1011)
         except Exception:
             pass

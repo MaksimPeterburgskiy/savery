@@ -66,7 +66,7 @@ def _task_name_for_stage(stage: JobStage) -> str:
         JobStage.MATCH: settings.celery_match_task,
         JobStage.HEALTHCHECK: settings.celery_health_task,
         JobStage.FANOUT: settings.celery_fanout_task,
-        
+        JobStage.OPTIMIZE: settings.celery_optimize_task,
     }
     task_name = stage_map.get(stage)
     if not task_name:
@@ -179,9 +179,9 @@ def mark_job_success(
     with session_scope() as session:
         job = _get_job(session, job_uuid)
 
-        # Don't overwrite FAILED status (e.g., from cancellation)
+        # Don't overwrite terminal statuses (e.g., from cancellation or failure)
         # This prevents race conditions where the worker completes after cancellation
-        if job.status == JobStatus.FAILED:
+        if job.status in (JobStatus.FAILED, JobStatus.CANCELLED):
             return _build_task_meta(job, include_status, extra_meta)
 
         job.status = JobStatus.SUCCESS

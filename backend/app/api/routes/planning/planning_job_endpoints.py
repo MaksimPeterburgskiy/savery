@@ -6,6 +6,7 @@ from typing import Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from backend.app.dependencies import get_db
@@ -67,7 +68,16 @@ def create_plan_route_job(
             job.task_id = ""
 
     db.add(job)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A route planning job is already running for this route plan",
+        )
+
     db.refresh(job)
 
     try:
@@ -121,11 +131,8 @@ def cancel_plan_route_job(
     if job.task_id:
         celery_app.control.revoke(job.task_id, terminate=True)
 
-    job.status = JobStatus.FAILED
-    if job.message:
-        job.message = f"{job.message}; Cancelled by user"
-    else:
-        job.message = "Cancelled by user"
+    job.status = JobStatus.CANCELLED
+    job.message = "Cancelled by user"
     job.completed_at = utcnow()
     db.add(job)
     db.commit()
@@ -264,7 +271,16 @@ def create_item_match_job(
             job.task_id = ""
 
     db.add(job)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An item match job is already running for this route plan",
+        )
+
     db.refresh(job)
 
     try:
@@ -318,11 +334,8 @@ def cancel_item_match_job(
     if job.task_id:
         celery_app.control.revoke(job.task_id, terminate=True)
 
-    job.status = JobStatus.FAILED
-    if job.message:
-        job.message = f"{job.message}; Cancelled by user"
-    else:
-        job.message = "Cancelled by user"
+    job.status = JobStatus.CANCELLED
+    job.message = "Cancelled by user"
     job.completed_at = utcnow()
     db.add(job)
     db.commit()
@@ -462,7 +475,16 @@ def create_item_fanout_job(
             job.task_id = ""
 
     db.add(job)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An item fanout job is already running for this route plan",
+        )
+
     db.refresh(job)
 
     try:
@@ -516,11 +538,8 @@ def cancel_item_fanout_job(
     if job.task_id:
         celery_app.control.revoke(job.task_id, terminate=True)
 
-    job.status = JobStatus.FAILED
-    if job.message:
-        job.message = f"{job.message}; Cancelled by user"
-    else:
-        job.message = "Cancelled by user"
+    job.status = JobStatus.CANCELLED
+    job.message = "Cancelled by user"
     job.completed_at = utcnow()
     db.add(job)
     db.commit()

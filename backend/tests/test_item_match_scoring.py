@@ -8,6 +8,7 @@ from pytest import approx
 from backend.workers.tasks import item_matches
 from backend.workers.tasks.item_matches import (
     calculate_match_score,
+    normalize_text_for_matching,
     remove_brand_from_name,
     should_exclude_brand,
 )
@@ -215,3 +216,82 @@ class TestEdgeCases:
         score2 = calculate_match_score(["CREAM", "CHEESE"], "cream cheese")
         assert score1 == approx(100.0)
         assert score2 == approx(100.0)
+
+
+class TestNormalizeTextForMatching:
+    """Tests for normalize_text_for_matching function."""
+
+    def test_basic_lowercase(self) -> None:
+        """Should lowercase text."""
+        assert normalize_text_for_matching("Hello World") == "hello world"
+
+    def test_removes_hyphens(self) -> None:
+        """Should replace hyphens with spaces."""
+        assert normalize_text_for_matching("Band-Aid") == "band aid"
+
+    def test_removes_apostrophes(self) -> None:
+        """Should remove apostrophes."""
+        assert normalize_text_for_matching("McDonald's") == "mcdonalds"
+
+    def test_handles_umlaut(self) -> None:
+        """Should handle German umlauts like Häagen-Dazs."""
+        result = normalize_text_for_matching("Häagen-Dazs")
+        assert result == "haagen dazs"
+
+    def test_handles_accent(self) -> None:
+        """Should handle accented characters like José Olé."""
+        result = normalize_text_for_matching("José Olé")
+        assert result == "jose ole"
+
+    def test_handles_tilde(self) -> None:
+        """Should handle Spanish ñ character."""
+        result = normalize_text_for_matching("Jalapeño")
+        assert result == "jalapeno"
+
+    def test_handles_cedilla(self) -> None:
+        """Should handle French ç character."""
+        result = normalize_text_for_matching("Façade")
+        assert result == "facade"
+
+    def test_handles_mixed_characters(self) -> None:
+        """Should handle mixed special characters."""
+        result = normalize_text_for_matching("Crème Brûlée")
+        assert result == "creme brulee"
+
+
+class TestUnicodeBrandHandling:
+    """Tests for Unicode brand handling in scoring functions."""
+
+    def test_haagen_dazs_brand_exclusion(self) -> None:
+        """Should handle Häagen-Dazs brand correctly."""
+        # User searching for generic "ice cream" - brand should be excluded
+        assert should_exclude_brand(["ice", "cream"], "Häagen-Dazs") is True
+
+    def test_haagen_dazs_brand_search(self) -> None:
+        """Should detect when user searches for Häagen-Dazs."""
+        # User searching for "haagen dazs" (ASCII version) - brand should NOT be excluded
+        assert should_exclude_brand(["haagen", "dazs"], "Häagen-Dazs") is False
+
+    def test_jose_ole_brand_exclusion(self) -> None:
+        """Should handle José Olé brand correctly."""
+        assert should_exclude_brand(["burrito"], "José Olé") is True
+
+    def test_jose_ole_brand_search(self) -> None:
+        """Should detect when user searches for Jose Ole."""
+        assert should_exclude_brand(["jose", "ole"], "José Olé") is False
+
+    def test_unicode_brand_removal_from_name(self) -> None:
+        """Should remove Unicode brand from product name."""
+        result = remove_brand_from_name("Häagen-Dazs Vanilla Ice Cream", "Häagen-Dazs")
+        assert result == "Vanilla Ice Cream"
+
+    def test_unicode_scoring_with_brand_exclusion(self) -> None:
+        """Should score correctly when excluding Unicode brand."""
+        # Generic search for "ice cream" with Häagen-Dazs product
+        score = calculate_match_score(
+            ["ice", "cream"],
+            "Häagen-Dazs Ice Cream",
+            product_brand="Häagen-Dazs"
+        )
+        # Brand excluded, left with "Ice Cream" - should be perfect match
+        assert score == approx(100.0)

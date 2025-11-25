@@ -116,8 +116,8 @@ def test_create_item_match_job_rejects_when_active_exists(client: TestClient, ro
     assert response.status_code == 409
 
 
-def test_cancel_item_match_job_sets_failed_status(client: TestClient, route_plan: dict[str, UUID]) -> None:
-    """Cancelling a job should mark it as failed and include the message."""
+def test_cancel_item_match_job_sets_cancelled_status(client: TestClient, route_plan: dict[str, UUID]) -> None:
+    """Cancelling a job should mark it as CANCELLED and include the message."""
 
     plan_id = route_plan["route_plan_id"]
     job_id = _create_match_job(plan_id, status=JobStatus.PENDING)
@@ -126,7 +126,7 @@ def test_cancel_item_match_job_sets_failed_status(client: TestClient, route_plan
     assert response.status_code == 200
 
     payload = response.json()
-    assert payload["status"] == JobStatus.FAILED.value
+    assert payload["status"] == JobStatus.CANCELLED.value
     assert payload["message"] == "Cancelled by user"
 
 

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     celery_match_task: str = "workers.item_matches.create_item_match_candidates"
     celery_fanout_task: str = "workers.item_matches.fanout_candidates_to_item_matches"
+    celery_optimize_task: str = "workers.optimize.optimize_route_plan"
 
     task_status_base_url: Optional[str] = None
 
