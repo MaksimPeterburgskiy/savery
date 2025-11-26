@@ -47,6 +47,7 @@ class JobStatus(str, Enum):
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 # Base class -------------------------------------------------------------------
@@ -449,13 +450,6 @@ class PlanItem(Base, table=True):
 
 class Job(Base, table=True):
     __tablename__ = "jobs"
-    __table_args__ = (
-        UniqueConstraint(
-            "plan_id",
-            "stage",
-            name="uq_jobs_plan_stage",
-        ),
-    )
 
     plan_id: UUID = Field(foreign_key="route_plans.id", nullable=False, index=True)
     plan: RoutePlan | None = Relationship(back_populates="jobs")
@@ -489,3 +483,13 @@ Index(
     PriceEntry.store_product_id,
     PriceEntry.fetched_at,
 )
+Index(
+    "ix_jobs_plan_stage_active",
+    Job.plan_id,
+    Job.stage,
+    unique=True,
+    postgresql_where=Job.status.in_((JobStatus.PENDING, JobStatus.RUNNING)),
+)
+
+# Terminal statuses that indicate a job is no longer active
+TERMINAL_JOB_STATUSES = frozenset({JobStatus.SUCCESS, JobStatus.FAILED, JobStatus.CANCELLED})

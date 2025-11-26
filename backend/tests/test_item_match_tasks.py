@@ -225,7 +225,8 @@ def test_create_item_match_candidates_generates_unique_candidates() -> None:
 
         assert product_ids == {product_milk_id, product_oatmilk_id}
         assert existing_candidate_id not in candidate_ids
-        assert all(candidate.score == 100 for candidate in candidates)
+        # Scores now vary based on term coverage heuristic (0-100 range)
+        assert all(0 < candidate.score <= 100 for candidate in candidates)
 
     _delete_entities(entity_ids)
 
@@ -488,7 +489,8 @@ def test_create_item_match_candidates_handles_branded_and_unbranded_items() -> N
         by_item: dict[UUID, list[ItemMatchCandidate]] = defaultdict(list)
         for candidate in candidates:
             by_item[candidate.list_item_id].append(candidate)
-            assert candidate.score == 100
+            # Scores now vary based on term coverage heuristic (0-100 range)
+            assert 0 < candidate.score <= 100
 
         for item_id, expected_names in list_item_ids.items():
             assert item_id in by_item
