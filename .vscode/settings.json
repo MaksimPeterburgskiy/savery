@@ -25,5 +25,6 @@
 			"username": "postgres",
 			"password": "postgres"
 		}
-	]
+	],
+	"python.languageServer": "None"
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -11,6 +12,8 @@ from backend.app.config import settings
 from backend.app.db import session_scope
 from backend.app.models import Job, JobStage, JobStatus, utcnow
 from backend.workers.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 
 class TaskStateReporter(Protocol):
@@ -35,6 +38,18 @@ def _as_uuid(value: str | UUID) -> UUID:
     return value if isinstance(value, UUID) else UUID(str(value))
 
 
+def _publish_task_state(task: TaskStateReporter, state: str, meta: dict[str, Any]) -> None:
+    """Send updates to Celery only when a task_id is available."""
+
+    task_id = getattr(getattr(task, "request", None), "id", None)
+    if not task_id:
+        return
+    try:
+        task.update_state(state=state, meta=meta)
+    except Exception as exc:  # pragma: no cover - defensive logging for broker/backend hiccups
+        logger.debug("Failed to publish state %s for task %s: %s", state, task_id, exc)
+
+
 def _get_job(session: Session, job_id: UUID) -> Job:
     """Fetch the job row or raise a ValueError if it does not exist."""
 
@@ -51,7 +66,7 @@ def _task_name_for_stage(stage: JobStage) -> str:
         JobStage.MATCH: settings.celery_match_task,
         JobStage.HEALTHCHECK: settings.celery_health_task,
         JobStage.FANOUT: settings.celery_fanout_task,
-        
+        JobStage.OPTIMIZE: settings.celery_optimize_task,
     }
     task_name = stage_map.get(stage)
     if not task_name:
@@ -96,7 +111,7 @@ def mark_job_running(
     total: int | None = None,
     message: str | None = None,
     task: TaskStateReporter,
-    include_status: bool = False,
+    include_status: bool = True,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Set the job state to RUNNING and optionally notify Celery of the update."""
@@ -114,7 +129,7 @@ def mark_job_running(
         session.add(job)
 
         meta_payload = _build_task_meta(job, include_status, extra_meta)
-        task.update_state(state="STARTED", meta=meta_payload)
+        _publish_task_state(task, "STARTED", meta_payload)
 
     return meta_payload
 
@@ -126,7 +141,7 @@ def record_job_progress(
     total: int | None = None,
     message: str | None = None,
     task: TaskStateReporter,
-    include_status: bool = False,
+    include_status: bool = True,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Update the current progress counters for the job."""
@@ -144,7 +159,7 @@ def record_job_progress(
         session.add(job)
 
         meta_payload = _build_task_meta(job, include_status, extra_meta)
-        task.update_state(state="PROGRESS", meta=meta_payload)
+        _publish_task_state(task, "PROGRESS", meta_payload)
 
     return meta_payload
 
@@ -154,7 +169,7 @@ def mark_job_success(
     *,
     message: str | None = None,
     task: TaskStateReporter,
-    include_status: bool = False,
+    include_status: bool = True,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Mark the job as successful and optionally attach a completion message."""
@@ -164,9 +179,9 @@ def mark_job_success(
     with session_scope() as session:
         job = _get_job(session, job_uuid)
 
-        # Don't overwrite FAILED status (e.g., from cancellation)
+        # Don't overwrite terminal statuses (e.g., from cancellation or failure)
         # This prevents race conditions where the worker completes after cancellation
-        if job.status == JobStatus.FAILED:
+        if job.status in (JobStatus.FAILED, JobStatus.CANCELLED):
             return _build_task_meta(job, include_status, extra_meta)
 
         job.status = JobStatus.SUCCESS
@@ -178,7 +193,7 @@ def mark_job_success(
         session.add(job)
 
         meta_payload = _build_task_meta(job, include_status, extra_meta)
-        task.update_state(state="SUCCESS", meta=meta_payload)
+        _publish_task_state(task, "SUCCESS", meta_payload)
 
     return meta_payload
 
@@ -188,7 +203,7 @@ def mark_job_failed(
     *,
     message: str | None = None,
     task: TaskStateReporter,
-    include_status: bool = False,
+    include_status: bool = True,
     extra_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Mark the job as failed and capture the error details."""
@@ -204,7 +219,7 @@ def mark_job_failed(
         session.add(job)
 
         meta_payload = _build_task_meta(job, include_status, extra_meta)
-        task.update_state(state="FAILURE", meta=meta_payload)
+        _publish_task_state(task, "FAILURE", meta_payload)
 
     return meta_payload
 
