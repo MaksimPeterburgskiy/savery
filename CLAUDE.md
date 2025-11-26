@@ -2,7 +2,7 @@
 
 ## Instructions
 Always search for the most up-to-date documentation and resources instead of relying solely on your own knowledge using context7 or alternatively web search.
-Make sure to use a venv (one should already exist in the backend folder) when working in the backend folder. If it doesn't exist, create one using the make_env tool.
+Make sure to use a venv (one should already exist in the backend folder) when working in the backend folder. If it doesn't exist, create one using the make_env tool. Use bun, not npm when working in the frontend folder.
 
 
 ## Repo Map

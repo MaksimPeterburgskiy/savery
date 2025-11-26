@@ -61,7 +61,7 @@
         "request": "launch",
         "console": "integratedTerminal",
         "cwd": "${workspaceFolder}/frontend/savery",
-        "runtimeExecutable": "npx",
+        "runtimeExecutable": "bunx",
         "args": [
             "expo",
             "start",
