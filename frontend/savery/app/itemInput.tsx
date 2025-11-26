@@ -6,15 +6,15 @@ import { Link } from 'expo-router';
 import { ArrowRight, Plus, Trash } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
-  TextInput,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import DraggableFlatList, {
-  RenderItemParams,
-  ScaleDecorator,
+    RenderItemParams,
+    ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 
 // ===== TYPES =====
@@ -227,16 +227,17 @@ const ItemInputList: React.FC<ItemInputListProps> = ({
       </View>
 
       {/* Scrollable list of item cards that can be dragged to reorder */}
-      {sortedItems.length > 0 && (
+      <View style={{ flex: 1 }}>
         <DraggableFlatList
           data={sortedItems}
           onDragEnd={handleDragEnd}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          containerStyle={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 40, flexGrow: 1 }}
         />
-      )}
+      </View>
     </View>
   );
 };
