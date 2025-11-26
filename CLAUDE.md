@@ -25,7 +25,7 @@ Make sure to use a venv (one should already exist in the backend folder) when wo
 
 ## Technologies in Use
 
-- Frontend: Expo Router, React Native + React Native Reusables (`@rn-primitives/*`), TypeScript, NativeWind + Tailwind CSS utilities, Bun
+- Frontend: Expo SDK, Expo CLI, Expo Router, React Native + React Native Reusables (`@rn-primitives/*`), TypeScript, NativeWind + Tailwind CSS utilities, Bun.
 - Backend: FastAPI, SQLModel, Celery, RabbitMQ, DragonflyDB, PostgreSQL + PostGIS + pgvector, Pint.
 - DevOps: Docker Compose–driven local stack.
 
