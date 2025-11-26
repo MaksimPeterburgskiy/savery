@@ -1,20 +1,11 @@
 import { Text, TextClassContext } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Input } from './input';
 import { cn } from '@/lib/utils';
 import {
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  View,
-  type ViewProps,
-  ListRenderItem,
+    View,
+    type ViewProps
 } from 'react-native';
 // import { Ionicons as IonIcons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
-import { Checkbox, XBox } from '@/components/ui/checkbox';
-import { CardStyle } from '@/lib/theme';
+import React, { forwardRef } from 'react';
 
 export interface Item {
   id: string;
@@ -78,66 +69,58 @@ const storeData: Store[] = [
   },
 ];
 
-function Card({ className, ...props }: ViewProps & React.RefAttributes<View>) {
-  return (
-    <TextClassContext.Provider value="text-card-foreground">
-      <View
-        className={cn(
-          'flex flex-col gap-6 rounded-xl border border-border bg-card py-6 shadow-sm shadow-black/5',
-          className
-        )}
-        {...props}
-      />
-    </TextClassContext.Provider>
-  );
-}
+const Card = forwardRef<View, ViewProps>(({ className, ...props }, ref) => (
+  <TextClassContext.Provider value="text-card-foreground">
+    <View
+      ref={ref}
+      className={cn(
+        'flex flex-col gap-6 rounded-xl border border-border bg-card py-6 shadow-sm shadow-black/5',
+        className
+      )}
+      {...props}
+    />
+  </TextClassContext.Provider>
+));
 
-function CardHeader({ className, ...props }: ViewProps & React.RefAttributes<View>) {
-  return <View className={cn('flex flex-col gap-1.5 px-6', className)} {...props} />;
-}
+const CardHeader = forwardRef<View, ViewProps>(({ className, ...props }, ref) => (
+  <View ref={ref} className={cn('flex flex-col gap-1.5 px-6', className)} {...props} />
+));
 
-function CardTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof Text> & React.RefAttributes<Text>) {
-  return (
+const CardTitle = forwardRef<Text, React.ComponentProps<typeof Text>>(
+  ({ className, ...props }, ref) => (
     <Text
+      ref={ref}
       role="heading"
       aria-level={3}
       className={cn('font-semibold leading-none', className)}
       {...props}
     />
-  );
-}
+  )
+);
 
-function CardDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof Text> & React.RefAttributes<Text>) {
-  return <Text className={cn('text-sm text-muted-foreground', className)} {...props} />;
-}
+const CardDescription = forwardRef<Text, React.ComponentProps<typeof Text>>(
+  ({ className, ...props }, ref) => (
+    <Text ref={ref} className={cn('text-sm text-muted-foreground', className)} {...props} />
+  )
+);
 
-function CardContent({ className, ...props }: ViewProps & React.RefAttributes<View>) {
-  return <View className={cn('px-6', className)} {...props} />;
-}
+const CardContent = forwardRef<View, ViewProps>(({ className, ...props }, ref) => (
+  <View ref={ref} className={cn('px-6', className)} {...props} />
+));
 
-function CardFooter({ className, ...props }: ViewProps & React.RefAttributes<View>) {
-  return <View className={cn('flex flex-row items-center px-6', className)} {...props} />;
-}
+const CardFooter = forwardRef<View, ViewProps>(({ className, ...props }, ref) => (
+  <View ref={ref} className={cn('flex flex-row items-center px-6', className)} {...props} />
+));
 
 
 
 
 
 export {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-//   ItemInputCard,
-//   ItemInputList,
-//   StoreList,
-//   ItemMatchList,
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle
 };
