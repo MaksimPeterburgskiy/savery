@@ -10,6 +10,7 @@ import { useColorScheme } from 'nativewind';
 
 import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 export {
     // Catch any errors thrown by the Layout component.
     ErrorBoundary
@@ -20,13 +21,13 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      
-          <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            <Stack screenOptions={{headerShown: false}}/>
-            <PortalHost />
-          </ThemeProvider>
-
+      <SafeAreaProvider>
+        <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <Stack screenOptions={{headerShown: false}}/>
+          <PortalHost />
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

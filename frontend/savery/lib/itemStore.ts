@@ -1,5 +1,37 @@
-// Simple in-memory store for passing item lists between screens.
+// Simple in-memory store for passing data between screens.
 // Not persisted — suitable for short-lived navigation state in this app.
+
+// ============================================================================
+// ACTUAL FUNCTIONALITY - Cross-screen ID storage for API integration
+// ============================================================================
+
+// ----- List ID storage -----
+// Holds the current shopping list ID for cross-screen access
+let currentListId: string | null = null;
+
+export function getListId(): string | null {
+  return currentListId;
+}
+
+export function setListId(id: string | null): void {
+  currentListId = id;
+}
+
+// ----- Route Plan ID storage -----
+// Holds the current route plan ID for cross-screen access
+let currentRoutePlanId: string | null = null;
+
+export function getRoutePlanId(): string | null {
+  return currentRoutePlanId;
+}
+
+export function setRoutePlanId(id: string | null): void {
+  currentRoutePlanId = id;
+}
+
+// ============================================================================
+// TEMP: Demo data and mock store logic for UI visualization until API integration is complete
+// ============================================================================
 
 export type ItemRef = { id: string; name: string; price?: number; quantity?: number; alts?: ItemRef[] };
 export type StoreRef = { id: string; name: string; distance?: string; totalCost?: number; items: ItemRef[] };
@@ -85,3 +117,7 @@ export function subscribe(cb: Listener) {
     listeners.delete(cb);
   };
 }
+
+// ============================================================================
+// end of TEMP: Demo data and mock store logic
+// ============================================================================

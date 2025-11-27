@@ -2,7 +2,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { Link } from 'expo-router';
+// TEMP: Using global item store for demo until API integration is complete
+import { setItems as setGlobalItems, setListId } from '@/lib/itemStore';
+// end of TEMP: Using global item store for demo until API integration is complete
+import { useRouter } from 'expo-router';
 import { ArrowRight, Plus, Trash } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -16,6 +19,7 @@ import DraggableFlatList, {
     RenderItemParams,
     ScaleDecorator,
 } from 'react-native-draggable-flatlist';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ===== TYPES =====
 interface Item {
@@ -43,6 +47,7 @@ type ItemInputListProps = {
   onDeleteItem: (id: string) => void;
   onUpdateItem: (id: string, changes: Partial<Item>) => void;
   onReorder: (reorderedItems: Item[]) => void;
+  loading?: boolean;
 };
 
 // ===== COMPONENT: ItemInputCard =====
@@ -134,6 +139,7 @@ const ItemInputList: React.FC<ItemInputListProps> = ({
   onDeleteItem,
   onUpdateItem,
   onReorder,
+  loading,
 }) => {
   // Text in the name input field
   const [name, setName] = useState('');
@@ -199,7 +205,7 @@ const ItemInputList: React.FC<ItemInputListProps> = ({
   return (
     <View style={{ flex: 1 }}>
       {/* Input bar at the top for adding new items */}
-      <View className="flex-row items-center gap-3 mb-3">
+      <View className="flex-row items-center gap-3 mb-5" style={{ marginHorizontal: 20 }}>
         {/* Quantity input */}
         <Input
           placeholder="Qty"
@@ -226,6 +232,11 @@ const ItemInputList: React.FC<ItemInputListProps> = ({
         </Button>
       </View>
 
+      {/* Loading message while fetching from API */}
+      {loading && (
+        <Text className="text-center mb-3 text-gray-500" style={{ marginHorizontal: 20 }}>Loading your list…</Text>
+      )}
+
       {/* Scrollable list of item cards that can be dragged to reorder */}
       <View style={{ flex: 1 }}>
         <DraggableFlatList
@@ -235,7 +246,7 @@ const ItemInputList: React.FC<ItemInputListProps> = ({
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}
           containerStyle={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 40, flexGrow: 1 }}
+          contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 20, flexGrow: 1 }}
         />
       </View>
     </View>
@@ -244,13 +255,15 @@ const ItemInputList: React.FC<ItemInputListProps> = ({
 
 // ===== SCREEN: itemInput =====
 function itemInput() {
+  const router = useRouter();
+  
   // ----- State -----
   // Whether the list has any items (for showing confirm button)
   const [hasItems, setHasItems] = useState(false);
   // All items in the list
   const [items, setItems] = useState<Item[]>([]);
   // ID of the shopping list from the API
-  const [listId, setListId] = useState<string | null>(null);
+  const [localListId, setLocalListId] = useState<string | null>(null);
   // True while fetching initial data
   const [loading, setLoading] = useState(true);
   // Timers for debouncing API updates per item
@@ -316,7 +329,8 @@ function itemInput() {
           selected = await created.json();
         }
         if (cancelled) return;
-        setListId(selected.id);
+        setListId(selected.id); // Store in global store for cross-screen access
+        setLocalListId(selected.id);
         // Fetch all items in the list
         const itemRes = await apiFetch(`/shopping-lists/${selected.id}/items`);
         const apiItems = await itemRes.json();
@@ -339,15 +353,15 @@ function itemInput() {
 
   // Get the list ID or throw if not ready
   const ensureListId = useCallback(() => {
-    if (!listId) throw new Error('List not ready yet');
-    return listId;
-  }, [listId]);
+    if (!localListId) throw new Error('List not ready yet');
+    return localListId;
+  }, [localListId]);
 
   // ----- Item mutation & sync helpers -----
   // Add a new item - creates it locally first, then syncs to API
   const handleAddItem = useCallback(
     async (name: string, quantity?: number | null, rawQty?: string | null) => {
-      if (!listId) return;
+      if (!localListId) return;
       const position = items.length;
       // Create temporary ID until API responds
       const tempId = `temp-${Date.now()}`;
@@ -356,7 +370,7 @@ function itemInput() {
       setItems((prev) => [...prev, tempItem]);
       try {
         // Send to API
-        const res = await apiFetch(`/shopping-lists/${listId}/items`, {
+        const res = await apiFetch(`/shopping-lists/${localListId}/items`, {
           method: 'POST',
           body: JSON.stringify({
             raw_text_item: name,
@@ -375,7 +389,7 @@ function itemInput() {
         setItems((prev) => prev.filter((it) => it.id !== tempId));
       }
     },
-    [apiFetch, items.length, listId, mapApiItem]
+    [apiFetch, items.length, localListId, mapApiItem]
   );
 
   // Send an item update to the API
@@ -429,14 +443,14 @@ function itemInput() {
       // Remove from local state immediately
       setItems((prev) => prev.filter((i) => i.id !== id));
       // Skip API call for temp items
-      if (id.startsWith('temp-') || !listId) return;
+      if (id.startsWith('temp-') || !localListId) return;
       try {
-        await apiFetch(`/shopping-lists/${listId}/items/${id}`, { method: 'DELETE' });
+        await apiFetch(`/shopping-lists/${localListId}/items/${id}`, { method: 'DELETE' });
       } catch (err) {
         console.error('Failed to delete item', err);
       }
     },
-    [apiFetch, listId]
+    [apiFetch, localListId]
   );
 
   // Handle drag-to-reorder: update local state and sync all items
@@ -456,40 +470,46 @@ function itemInput() {
   // ----- Render -----
   return (
     // Adjust layout when keyboard appears
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <View
-        style={{
-          flex: 1,
-          marginTop: 80,
-          marginHorizontal: 20,
-        }}>
-        <View style={{ flex: 1 }}>
-          {/* The input bar and item list */}
-          <ItemInputList
-            items={items}
-            onAddItem={handleAddItem}
-            onDeleteItem={handleDeleteItem}
-            onUpdateItem={handleUpdateItem}
-            onReorder={handleReorder}
-          />
-          {/* Loading message while fetching from API */}
-          {loading && (
-            <Text className="text-center mt-4 text-gray-500">Loading your list…</Text>
-          )}
-        </View>
-        {/* Confirm button - only shown when there are items */}
-        {hasItems && (
-          <View style={{ paddingVertical: 20 }}>
-            <Link href="/searchSelect" asChild>
-              <Button variant="continue" size="xl">
+    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginTop: 16 }}>
+          <View style={{ flex: 1 }}>
+            {/* The input bar and item list */}
+            <ItemInputList
+              items={items}
+              onAddItem={handleAddItem}
+              onDeleteItem={handleDeleteItem}
+              onUpdateItem={handleUpdateItem}
+              onReorder={handleReorder}
+              loading={loading}
+            />
+          </View>
+          {/* Confirm button - only shown when there are items */}
+          {hasItems && (
+            <View style={{ paddingVertical: 20, marginHorizontal: 20 }}>
+              <Button
+                variant="continue"
+                size="xl"
+                onPress={() => {
+                  // TEMP: Sync items to global store for demo - remove when API integration is complete
+                  setGlobalItems(items.map((it) => ({
+                    id: it.id,
+                    name: it.name,
+                    price: it.price,
+                    quantity: it.quantity,
+                  })));
+                  // end of TEMP: Sync items to global store for demo
+                  router.push('/searchSelect');
+                }}
+              >
                 <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
                 <ArrowRight size={20} color="white" />
               </Button>
-            </Link>
-          </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+            </View>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

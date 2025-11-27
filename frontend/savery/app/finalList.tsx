@@ -1,9 +1,10 @@
-import { FlatList, ListRenderItem, View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Text } from '@/components/ui/text';
+import { getStores, StoreRef, subscribeStores } from '@/lib/itemStore';
 import { CardStyle } from '@/lib/theme';
-import { useEffect, useState } from 'react';
-import { getStores, subscribeStores, StoreRef } from '@/lib/itemStore';
+import React, { useEffect, useState } from 'react';
+import { FlatList, ListRenderItem, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // List of Items Grouped by store for the final list
 const StoreList: React.FC = () => {
@@ -70,9 +71,11 @@ const StoreCard: React.FC<StoreCardProps> = ({ store }) => {
 
 function FinalList() {
   return (
-    <View style={{ flex: 1, gap: 10, marginTop: 80, marginLeft: 20, marginRight: 20 }}>
-      <StoreList />
-    </View>
+    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <View style={{ flex: 1, gap: 10, marginHorizontal: 20, marginTop: 16 }}>
+        <StoreList />
+      </View>
+    </SafeAreaView>
   );
 }
 

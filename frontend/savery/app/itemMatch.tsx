@@ -1,14 +1,17 @@
-import { FlatList, ListRenderItem, View } from 'react-native';
 import { Button } from '@/components/ui/button';
-import { Text } from '@/components/ui/text';
-import { useRouter } from 'expo-router';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import React, { useEffect, useState } from 'react';
-import { CardStyle } from '@/lib/theme';
-import { getItems, subscribe, setItems } from '@/lib/itemStore';
+import { Text } from '@/components/ui/text';
+// TEMP: Using global item store for demo until API integration is complete
 import type { ItemRef } from '@/lib/itemStore';
+// end of TEMP: Using global item store for demo until API integration is complete
+import { getItems, setItems, subscribe } from '@/lib/itemStore';
+import { CardStyle } from '@/lib/theme';
+import { useRouter } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { FlatList, ListRenderItem, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 type Item = ItemRef;
 
 type ItemMatchListProps = {
@@ -155,22 +158,24 @@ function ItemMatch() {
   };
 
   return (
-    <View style={{ flex: 1, gap: 10, marginTop: 80, marginLeft: 20, marginRight: 20 }}>
-      <ItemMatchList
-        onAllSelected={(v) => setAllSelected(v)}
-        items={items}
-        selections={selections}
-        setSelections={setSelections}
-      />
-      {allSelected && (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 30 }}>
-          <Button variant="continue" size="xl" onPress={confirmAndProceed}>
-            <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
-            <ArrowRight size={20} color="white" />
-          </Button>
-        </View>
-      )}
-    </View>
+    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <View style={{ flex: 1, gap: 10, marginHorizontal: 20, marginTop: 16 }}>
+        <ItemMatchList
+          onAllSelected={(v) => setAllSelected(v)}
+          items={items}
+          selections={selections}
+          setSelections={setSelections}
+        />
+        {allSelected && (
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 30 }}>
+            <Button variant="continue" size="xl" onPress={confirmAndProceed}>
+              <Text style={{ textAlign: 'center', fontSize: 20 }}>Confirm Items</Text>
+              <ArrowRight size={20} color="white" />
+            </Button>
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 

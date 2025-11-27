@@ -1,54 +1,520 @@
-import React from 'react';
-import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { View } from 'react-native';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Text } from '@/components/ui/text';
+import { getListId, setRoutePlanId } from '@/lib/itemStore';
 import { Link } from 'expo-router';
-import { ArrowRight } from 'lucide-react-native';
+import { ArrowRight, MapPin, Scale, Store, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+// ===== TYPES =====
+
+/** Optimization mode values matching backend OptimizationMode enum */
+type OptimizationMode = 'SPEED' | 'BALANCED' | 'PRICE';
+
+/** Selected store from the API */
+interface SelectedStore {
+  id: string;
+  name: string;
+  address_line1: string;
+  city: string;
+  region: string;
+  postal_code: string;
+  longitude?: number;
+  latitude?: number;
+  distance_mi?: number; // computed client-side from user location
+}
+
+/** Route plan from the API */
+interface RoutePlan {
+  id: string;
+  list_id: string;
+  status: string;
+  opt_mode: OptimizationMode;
+  lowest_unit_price: boolean;
+  max_stores: number;
+  selected_stores: SelectedStore[];
+  user_longitude?: number;
+  user_latitude?: number;
+  total_price?: number;
+  total_distance_m?: number;
+  total_travel_sec?: number;
+}
+
+// ===== SCREEN: searchSelect =====
 function SearchSelect() {
-  const [tab, setTab] = React.useState<string>('');
+  // ----- State -----
+  // Search mode: Speed, Balanced, or Price (maps to backend OptimizationMode)
+  const [searchMode, setSearchMode] = useState<OptimizationMode>('BALANCED');
+  // Whether to compare by lowest unit price
+  const [unitPriceMode, setUnitPriceMode] = useState(false);
+  // Maximum number of stores to visit (as string for input field)
+  const [maxStores, setMaxStores] = useState('3');
+  // Selected stores from the route plan
+  const [selectedStores, setSelectedStores] = useState<SelectedStore[]>([]);
+  // Route plan ID from the API
+  const [routePlanId, setLocalRoutePlanId] = useState<string | null>(null);
+  // True while fetching initial data
+  const [loading, setLoading] = useState(true);
+  // Timers for debouncing API updates
+  const syncTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Base URL for API calls
+  const API_BASE = useMemo(
+    () => process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000/api',
+    []
+  );
+  // User identifier for the API
+  const CLIENT_ID = 'user';
+  // Keyboard state for floating done button
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const keyboardHeight = useRef(new Animated.Value(0)).current;
+
+  // ----- API utilities -----
+  // Helper function for making API requests with error handling
+  const apiFetch = useCallback(
+    async (path: string, init?: RequestInit) => {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+        ...init,
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`API ${res.status}: ${body || res.statusText}`);
+      }
+      return res;
+    },
+    [API_BASE]
+  );
+
+  // Convert API response to RoutePlan format
+  const mapApiRoutePlan = useCallback((apiPlan: any): RoutePlan => ({
+    id: apiPlan.id,
+    list_id: apiPlan.list_id,
+    status: apiPlan.status,
+    opt_mode: apiPlan.opt_mode as OptimizationMode,
+    lowest_unit_price: apiPlan.lowest_unit_price,
+    max_stores: apiPlan.max_stores,
+    selected_stores: (apiPlan.selected_stores || []).map((store: any) => ({
+      id: store.id,
+      name: store.name,
+      address_line1: store.address_line1,
+      city: store.city,
+      region: store.region,
+      postal_code: store.postal_code,
+      longitude: store.longitude,
+      latitude: store.latitude,
+    })),
+    user_longitude: apiPlan.user_longitude,
+    user_latitude: apiPlan.user_latitude,
+    total_price: apiPlan.total_price,
+    total_distance_m: apiPlan.total_distance_m,
+    total_travel_sec: apiPlan.total_travel_sec,
+  }), []);
+
+  // ----- Effects -----
+  // On mount: fetch existing route plan or create a new one
+  useEffect(() => {
+    let cancelled = false;
+    const bootstrap = async () => {
+      try {
+        const listId = getListId();
+        if (!listId) {
+          console.error('No list ID available');
+          setLoading(false);
+          return;
+        }
+
+        // Try to get existing route plans for this list
+        const existing = await apiFetch(`/shopping-lists/${listId}/route-plans`);
+        const plans = await existing.json();
+        let selected = plans?.[0];
+
+        // If no route plan exists, create one
+        if (!selected) {
+          const created = await apiFetch(`/shopping-lists/${listId}/route-plans`, {
+            method: 'POST',
+            body: JSON.stringify({
+              client_id: CLIENT_ID,
+              opt_mode: 'BALANCED',
+              lowest_unit_price: false,
+              max_stores: 3,
+            }),
+          });
+          selected = await created.json();
+        }
+
+        if (cancelled) return;
+
+        const routePlan = mapApiRoutePlan(selected);
+        setLocalRoutePlanId(routePlan.id);
+        setRoutePlanId(routePlan.id); // Store in global store for cross-screen access
+        setSearchMode(routePlan.opt_mode);
+        setUnitPriceMode(routePlan.lowest_unit_price);
+        setMaxStores(String(routePlan.max_stores));
+        setSelectedStores(routePlan.selected_stores);
+      } catch (err) {
+        console.error('Failed to initialize route plan', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    bootstrap();
+    // Cleanup: cancel pending work if component unmounts
+    return () => {
+      cancelled = true;
+      Object.values(syncTimers.current).forEach(clearTimeout);
+    };
+  }, [apiFetch, mapApiRoutePlan]);
+
+  // Keyboard event listeners for floating done button (works on iOS and Android)
+  useEffect(() => {
+    // iOS uses 'will' events for smoother animation, Android uses 'did' events
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onKeyboardShow = (e: any) => {
+      setKeyboardVisible(true);
+      Animated.timing(keyboardHeight, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === 'ios' ? (e.duration - 200|| 150) : 150,
+        useNativeDriver: false,
+      }).start();
+    };
+
+    const onKeyboardHide = (e: any) => {
+      Animated.timing(keyboardHeight, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? (e.duration - 200 || 150) : 150,
+        useNativeDriver: false,
+      }).start(() => setKeyboardVisible(false));
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onKeyboardShow);
+    const hideSub = Keyboard.addListener(hideEvent, onKeyboardHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardHeight]);
+
+  // ----- Route plan sync helpers -----
+  // Send a route plan update to the API
+  const syncRoutePlan = useCallback(
+    async (updates: { opt_mode?: OptimizationMode; lowest_unit_price?: boolean; max_stores?: number }) => {
+      if (!routePlanId) return;
+      try {
+        const res = await apiFetch(`/route-plans/${routePlanId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+        });
+        const updated = await res.json();
+        const routePlan = mapApiRoutePlan(updated);
+        setSelectedStores(routePlan.selected_stores);
+      } catch (err) {
+        console.error('Failed to sync route plan', err);
+      }
+    },
+    [apiFetch, routePlanId, mapApiRoutePlan]
+  );
+
+  // Debounce sync calls so we don't spam API while user changes settings
+  const scheduleSync = useCallback(
+    (key: string, updates: { opt_mode?: OptimizationMode; lowest_unit_price?: boolean; max_stores?: number }) => {
+      // Clear any existing timer for this key
+      if (syncTimers.current[key]) {
+        clearTimeout(syncTimers.current[key]);
+      }
+      // Schedule new sync after 300ms
+      syncTimers.current[key] = setTimeout(() => syncRoutePlan(updates), 300);
+    },
+    [syncRoutePlan]
+  );
+
+  // ----- Event handlers -----
+  // Handle search mode tab change
+  const handleSearchModeChange = useCallback(
+    (value: string) => {
+      const mode = value as OptimizationMode;
+      setSearchMode(mode);
+      scheduleSync('opt_mode', { opt_mode: mode });
+    },
+    [scheduleSync]
+  );
+
+  // Handle unit price mode toggle
+  const handleUnitPriceModeChange = useCallback(
+    (checked: boolean) => {
+      setUnitPriceMode(checked);
+      scheduleSync('lowest_unit_price', { lowest_unit_price: checked });
+    },
+    [scheduleSync]
+  );
+
+  // Handle max stores input change
+  const handleMaxStoresChange = useCallback(
+    (value: string) => {
+    // Only allow numeric input
+    const numeric = value.replace(/[^0-9]/g, '');
+    setMaxStores(numeric);
+      const parsed = parseInt(numeric, 10);
+      if (parsed >= 1) {
+        scheduleSync('max_stores', { max_stores: parsed });
+      }
+    },
+    [scheduleSync]
+  );
+
+  // Handle removing a store from selection
+  const handleRemoveStore = useCallback(
+    async (storeId: string) => {
+      if (!routePlanId) return;
+      // Optimistic update
+      setSelectedStores((prev) => prev.filter((s) => s.id !== storeId));
+      try {
+        const res = await apiFetch(`/route-plans/${routePlanId}/selected-stores/${storeId}`, {
+          method: 'DELETE',
+        });
+        const updated = await res.json();
+        const routePlan = mapApiRoutePlan(updated);
+        setSelectedStores(routePlan.selected_stores);
+      } catch (err) {
+        console.error('Failed to remove store', err);
+        // Revert on error - refetch the route plan
+        try {
+          const res = await apiFetch(`/route-plans/${routePlanId}`);
+          const updated = await res.json();
+          const routePlan = mapApiRoutePlan(updated);
+          setSelectedStores(routePlan.selected_stores);
+        } catch {
+          // Ignore refetch errors
+        }
+      }
+    },
+    [apiFetch, routePlanId, mapApiRoutePlan]
+  );
+
+  // ----- Render -----
+  // Show loading state while fetching initial data
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text className="text-gray-500">Loading route plan…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={{ flex: 1, gap: 10, marginTop: 80, marginLeft: 20, marginRight: 20 }}>
-      <Text variant={'h2'} style={{ textAlign: 'center' }}>
-        Item Search Selection
-      </Text>
+    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginHorizontal: 20, marginTop: 16 }}>
+          {/* Scrollable content */}
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 20 }}>
+          {/* Search Options Card */}
+          <Card className="mb-4 rounded-2xl bg-white/80 py-0 dark:bg-zinc-900/80">
+            <CardContent className="px-4 py-4">
+              {/* Search Mode Tabs */}
+              <Text className="mb-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
+                Search Mode
+              </Text>
+                <Tabs value={searchMode} onValueChange={handleSearchModeChange}>
+                <TabsList className="w-full">
+                    <TabsTrigger value="SPEED" className="flex-1">
+                    <Text>Speed</Text>
+                  </TabsTrigger>
+                    <TabsTrigger value="BALANCED" className="flex-1">
+                    <Text>Balanced</Text>
+                  </TabsTrigger>
+                    <TabsTrigger value="PRICE" className="flex-1">
+                    <Text>Price</Text>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
 
-      {/* Tab list */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="Speed">
-            <Text>Speed</Text>
-          </TabsTrigger>
-          <TabsTrigger value="Balanced">
-            <Text>Balanced</Text>
-          </TabsTrigger>
-          <TabsTrigger value="Price">
-            <Text>Price</Text>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+              {/* Separator */}
+              <View className="my-4 h-px bg-gray-200 dark:bg-gray-700" />
 
-      {/* TODO: Implement a location display on a map */}
-      <View
-        style={{
-          height: 500,
-          borderRadius: 10,
-          alignItems: 'center',
-          backgroundColor: 'lightgray',
-        }}>
-        <Text style={{ color: 'black' }}>Placeholder for a map implementation</Text>
-      </View>
+              {/* Max Stores Setting */}
+              <View className="mb-4 flex-row items-center justify-between">
+                <View className="flex-1">
+                  <View className="flex-row items-center gap-2">
+                    <Store size={18} color="#4AA8D8" />
+                    <Text className="font-medium">Max Stores</Text>
+                  </View>
+                  <Text className="mt-1 text-xs text-gray-500">
+                    Limit the number of stores to visit
+                  </Text>
+                </View>
+                  <Input
+                    value={maxStores}
+                    onChangeText={handleMaxStoresChange}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    className="w-16 text-center"
+                    placeholder="3"
+                    inputAccessoryViewID=""
+                  />
+              </View>
 
-      {tab && (
-        <Link href="/itemMatch" asChild>
-          <Button variant="continue" size="xl">
-            <Text style={{ textAlign: 'center', fontSize: 20 }}>Match Items</Text>
-            <ArrowRight size={20} color="white" />
-          </Button>
-        </Link>
+              {/* Separator */}
+              <View className="my-2 h-px bg-gray-200 dark:bg-gray-700" />
+
+              {/* Unit Price Mode Toggle */}
+              <View className="mt-2 flex-row items-center justify-between">
+                <View className="flex-1 pr-4">
+                  <View className="flex-row items-center gap-2">
+                    <Scale size={18} color="#4AA8D8" />
+                    <Text className="font-medium">Lowest Unit Price</Text>
+                  </View>
+                  <Text className="mt-1 text-xs text-gray-500">
+                    Compare items by price per unit
+                  </Text>
+                </View>
+                <Switch
+                  checked={unitPriceMode}
+                    onCheckedChange={handleUnitPriceModeChange}
+                  className="scale-125"
+                />
+              </View>
+            </CardContent>
+          </Card>
+
+          {/* Selected Stores */}
+          <Card className="mb-4 rounded-2xl bg-white/80 py-0 dark:bg-zinc-900/80">
+            <CardContent className="px-4 py-4">
+              <View className="mb-3 flex-row items-center justify-between">
+                <View className="flex-row items-center gap-2">
+                  <Store size={18} color="#4AA8D8" />
+                  <Text className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                    Selected Stores
+                  </Text>
+                </View>
+                <Text className="text-xs text-gray-400">
+                  {selectedStores.length} selected
+                </Text>
+              </View>
+
+              {/* Selected Store Cards */}
+              {selectedStores.length > 0 ? (
+                <View className="gap-2">
+                  {selectedStores.map((store) => (
+                    <View
+                      key={store.id}
+                      className="flex-row items-center rounded-xl bg-gray-100 p-3 dark:bg-zinc-800">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-[#4AA8D8]/10">
+                        <Store size={18} color="#4AA8D8" />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-semibold">{store.name}</Text>
+                        <Text className="text-xs text-gray-500">
+                          {store.address_line1}, {store.city}
+                        </Text>
+                      </View>
+                      {store.distance_mi && (
+                        <Text className="mr-3 text-xs text-gray-400">
+                          {store.distance_mi} mi
+                        </Text>
+                      )}
+                      <TouchableOpacity
+                        onPress={() => handleRemoveStore(store.id)}
+                        className="h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-zinc-700">
+                        <X size={16} color="#9CA3AF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View className="items-center py-4">
+                  <Text className="text-sm text-gray-400">No stores selected</Text>
+                  <Text className="mt-1 text-xs text-gray-400">
+                    Tap the map below to add stores
+                  </Text>
+                </View>
+              )}
+
+              {/* Separator */}
+              <View className="my-4 h-px bg-gray-200 dark:bg-gray-700" />
+
+              {/* Map placeholder area */}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={{
+                  height: 200,
+                  borderRadius: 12,
+                  backgroundColor: '#F3F4F6',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed',
+                }}>
+                <MapPin size={32} color="#9CA3AF" style={{ marginBottom: 8 }} />
+                <Text style={{ color: '#6B7280', fontSize: 14, fontWeight: '500' }}>
+                  Tap to Open Map
+                </Text>
+                <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 4 }}>
+                  Search and select stores nearby
+                </Text>
+              </TouchableOpacity>
+            </CardContent>
+          </Card>
+        </ScrollView>
+
+          {/* Continue Button - Fixed at Bottom, only shown when stores are selected */}
+          {selectedStores.length > 0 && (
+          <View style={{ paddingVertical: 20 }}>
+            <Link href="/itemMatch" asChild>
+              <Button variant="continue" size="xl">
+                <Text style={{ textAlign: 'center', fontSize: 18, fontWeight: '600' }}>
+                  Match Items
+                </Text>
+                <ArrowRight size={20} color="white" />
+              </Button>
+            </Link>
+          </View>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* Floating Done button above keyboard */}
+      {keyboardVisible && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: keyboardHeight,
+            right: 16,
+            marginBottom: 10,
+          }}>
+          <TouchableOpacity
+            onPress={() => Keyboard.dismiss()}
+            activeOpacity={0.8}
+            style={{
+              backgroundColor: '#4AA8D8',
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5,
+            }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+              Done
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
