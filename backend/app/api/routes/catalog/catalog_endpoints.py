@@ -97,7 +97,7 @@ def get_nearby_store_chains(
     summary="Search for stores by name or address",
 )
 def search_stores(
-    q: str = Query(..., min_length=1, description="Search query (store name, chain name, address, city, or postal code)."),
+    q: str | None = Query(default=None, min_length=1, description="Search query (store name, chain name, address, city, or postal code). If omitted, returns all stores."),
     latitude: float | None = Query(default=None, description="Latitude for distance filtering and ordering."),
     longitude: float | None = Query(default=None, description="Longitude for distance filtering and ordering."),
     distance_km: float | None = Query(default=None, gt=0, description="Search radius in kilometers (requires latitude and longitude)."),
@@ -109,17 +109,20 @@ def search_stores(
 
     When latitude and longitude are provided, results can be filtered by distance
     and are ordered by proximity. Otherwise, results are ordered by store name.
-    """
-    q_ilike = f"%{q.strip()}%"
 
+    If no search query is provided, returns all stores within the specified radius
+    (requires latitude, longitude, and distance_km).
+    """
     # Base query with geography GeoJSON for response mapping
-    statement = (
-        select(
-            Store,
-            func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
-        )
-        .outerjoin(StoreChain, Store.chain_id == StoreChain.id)
-        .where(
+    statement = select(
+        Store,
+        func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
+    ).outerjoin(StoreChain, Store.chain_id == StoreChain.id)
+
+    # Apply search filter only if query is provided
+    if q:
+        q_ilike = f"%{q.strip()}%"
+        statement = statement.where(
             or_(
                 Store.name.ilike(q_ilike),
                 Store.address_line1.ilike(q_ilike),
@@ -128,7 +131,6 @@ def search_stores(
                 StoreChain.name.ilike(q_ilike),
             )
         )
-    )
 
     # Apply distance filtering and ordering when location is provided
     if latitude is not None and longitude is not None:

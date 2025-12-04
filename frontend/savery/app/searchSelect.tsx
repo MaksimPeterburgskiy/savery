@@ -4,8 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
-import { getListId, setRoutePlanId } from '@/lib/itemStore';
-import { Link } from 'expo-router';
+import { distanceInMiles } from '@/lib/geo';
+import { getListId, getRoutePlanId, setRoutePlanId } from '@/lib/itemStore';
+import { Link, useFocusEffect } from 'expo-router';
 import { ArrowRight, MapPin, Scale, Store, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
@@ -169,6 +170,45 @@ function SearchSelect() {
       Object.values(syncTimers.current).forEach(clearTimeout);
     };
   }, [apiFetch, mapApiRoutePlan]);
+
+  // Refresh route plan when screen regains focus (e.g., returning from map)
+  useFocusEffect(
+    useCallback(() => {
+      const refreshRoutePlan = async () => {
+        const planId = routePlanId || getRoutePlanId();
+        if (!planId) return;
+
+        try {
+          const res = await apiFetch(`/route-plans/${planId}`);
+          const apiPlan = await res.json();
+          const plan = mapApiRoutePlan(apiPlan);
+
+          // Compute distances if user location is available
+          if (plan.user_longitude != null && plan.user_latitude != null) {
+            const userCoords = { latitude: plan.user_latitude, longitude: plan.user_longitude };
+            const storesWithDist = plan.selected_stores.map((store) => {
+              if (store.longitude == null || store.latitude == null) return store;
+              const dist = distanceInMiles(userCoords, {
+                latitude: store.latitude,
+                longitude: store.longitude,
+              });
+              return { ...store, distance_mi: Math.round(dist * 10) / 10 };
+            });
+            setSelectedStores(storesWithDist);
+          } else {
+            setSelectedStores(plan.selected_stores);
+          }
+        } catch (err) {
+          console.error('Failed to refresh route plan on focus', err);
+        }
+      };
+
+      // Only refresh if we already have a route plan (not during initial load)
+      if (!loading && routePlanId) {
+        refreshRoutePlan();
+      }
+    }, [routePlanId, loading, apiFetch, mapApiRoutePlan])
+  );
 
   // Keyboard event listeners for floating done button (works on iOS and Android)
   useEffect(() => {
@@ -444,27 +484,73 @@ function SearchSelect() {
               {/* Separator */}
               <View className="my-4 h-px bg-gray-200 dark:bg-gray-700" />
 
-              {/* Map placeholder area */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                style={{
-                  height: 200,
-                  borderRadius: 12,
-                  backgroundColor: '#F3F4F6',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderStyle: 'dashed',
-                }}>
-                <MapPin size={32} color="#9CA3AF" style={{ marginBottom: 8 }} />
-                <Text style={{ color: '#6B7280', fontSize: 14, fontWeight: '500' }}>
-                  Tap to Open Map
-                </Text>
-                <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 4 }}>
-                  Search and select stores nearby
-                </Text>
-              </TouchableOpacity>
+              {/* Map preview area - tap to open full map */}
+              <Link href="/storeMap" asChild>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={{
+                    height: 200,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}>
+                  {/* Map-styled background */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: '#E8F4E8',
+                    }}>
+                    {/* Simplified map grid pattern */}
+                    <View style={{ flex: 1, position: 'relative' }}>
+                      {/* Horizontal "streets" */}
+                      <View style={{ position: 'absolute', top: '25%', left: 0, right: 0, height: 2, backgroundColor: '#D1D5DB' }} />
+                      <View style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 3, backgroundColor: '#F5D96A' }} />
+                      <View style={{ position: 'absolute', top: '75%', left: 0, right: 0, height: 2, backgroundColor: '#D1D5DB' }} />
+                      {/* Vertical "streets" */}
+                      <View style={{ position: 'absolute', left: '20%', top: 0, bottom: 0, width: 2, backgroundColor: '#D1D5DB' }} />
+                      <View style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 3, backgroundColor: '#F5D96A' }} />
+                      <View style={{ position: 'absolute', left: '80%', top: 0, bottom: 0, width: 2, backgroundColor: '#D1D5DB' }} />
+                      {/* "Buildings" / blocks */}
+                      <View style={{ position: 'absolute', top: '10%', left: '5%', width: '12%', height: '12%', backgroundColor: '#D9EAD9', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '5%', left: '25%', width: '20%', height: '18%', backgroundColor: '#C8DFC8', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '8%', left: '55%', width: '22%', height: '15%', backgroundColor: '#D9EAD9', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '30%', left: '5%', width: '12%', height: '18%', backgroundColor: '#C8DFC8', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '55%', left: '25%', width: '20%', height: '18%', backgroundColor: '#D9EAD9', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '80%', left: '55%', width: '22%', height: '15%', backgroundColor: '#C8DFC8', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '60%', left: '5%', width: '12%', height: '14%', backgroundColor: '#D9EAD9', borderRadius: 4 }} />
+                      <View style={{ position: 'absolute', top: '55%', left: '83%', width: '12%', height: '20%', backgroundColor: '#C8DFC8', borderRadius: 4 }} />
+                    </View>
+                  </View>
+                  {/* Overlay gradient for text readability */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 100,
+                      backgroundColor: 'rgba(0,0,0,0.35)',
+                    }}
+                  />
+                  {/* Center pin icon */}
+                  <View style={{ position: 'absolute', top: '35%', left: '50%', marginLeft: -16, marginTop: -24 }}>
+                    <MapPin size={32} color="#4AA8D8" fill="#4AA8D8" />
+                  </View>
+                  {/* Bottom text */}
+                  <View style={{ position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center' }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
+                      Tap to Open Map
+                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 }}>
+                      Search and select stores nearby
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Link>
             </CardContent>
           </Card>
         </ScrollView>
