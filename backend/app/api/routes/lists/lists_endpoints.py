@@ -1,4 +1,4 @@
-"""Shopping list endpoints."""
+"""Shopping list HTTP endpoints."""
 
 from __future__ import annotations
 
@@ -7,105 +7,18 @@ from typing import Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from backend.app.dependencies import get_db
 from backend.app.models import ListItem, ShoppingList
-from backend.app.parsing import ItemParser, ParsedItem
+from backend.app.parsing import ItemParser
+
+from .lists_helpers import _apply_parsed_fields, _get_list_item_or_404, _get_shopping_list_or_404
+from .lists_schemas import ListItemCreate, ListItemResponse, ListItemUpdate, ShoppingListCreate, ShoppingListResponse, ShoppingListUpdate
 
 router = APIRouter()
 item_parser = ItemParser()
-
-
-class ShoppingListCreate(BaseModel):
-    """Payload for creating a shopping list."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    client_id: str
-    title: str | None = None
-
-
-class ShoppingListUpdate(BaseModel):
-    """Payload for updating a shopping list."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    title: str | None = None
-
-
-class ShoppingListResponse(BaseModel):
-    """Response model for shopping list metadata."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    client_id: str | None
-    title: str | None
-    created_at: datetime
-    updated_at: datetime
-
-
-class ListItemResponse(BaseModel):
-    """Response model for a list item."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    list_id: UUID
-    raw_text_qty: str | None = None
-    raw_text_item: str | None = None
-    item_name: str | None = None
-    qty_value: float | None = None
-    qty_unit: str | None = None
-    norm_qty_value: float | None = None
-    norm_qty_unit: str | None = None
-    position: int
-
-
-class ListItemCreate(BaseModel):
-    """Payload for creating a list item."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    raw_text_qty: str | None = None
-    raw_text_item: str | None = None
-    position: int
-
-
-class ListItemUpdate(BaseModel):
-    """Payload for updating a list item."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    raw_text_qty: str | None = None
-    raw_text_item: str | None = None
-    position: int | None = None
-
-
-def _get_shopping_list_or_404(session: Session, shopping_list_id: UUID) -> ShoppingList:
-    shopping_list = session.get(ShoppingList, shopping_list_id)
-    if shopping_list is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shopping list not found")
-    return shopping_list
-
-
-def _get_list_item_or_404(session: Session, shopping_list_id: UUID, item_id: UUID) -> ListItem:
-    item = session.get(ListItem, item_id)
-    if item is None or item.list_id != shopping_list_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List item not found")
-    return item
-
-def _apply_parsed_fields(item: ListItem, parsed: ParsedItem) -> None:
-    """Copy parsed values to the ListItem model."""
-
-    item.item_name = parsed.name or None
-    item.qty_value = parsed.quantity
-    item.qty_unit = parsed.unit
-    item.norm_qty_value = parsed.normalized_quantity
-    item.norm_qty_unit = parsed.normalized_unit
 
 
 @router.get(
@@ -284,3 +197,6 @@ def delete_item(
     session.delete(item)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+__all__ = ["router"]

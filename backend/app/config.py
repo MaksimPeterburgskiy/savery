@@ -30,12 +30,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/savery"
 
     celery_broker_url: str = "amqp://guest:guest@localhost//"
-    celery_result_backend: str = "rpc://"
+    celery_result_backend: str = "redis://localhost:6379/0"
     celery_health_task: str = "workers.health.run_demo"
-    celery_demo_task_delay_seconds: float = 1.0
-    
+    celery_demo_task_delay_seconds: float = 0.01
+
     celery_match_task: str = "workers.item_matches.create_item_match_candidates"
     celery_fanout_task: str = "workers.item_matches.fanout_candidates_to_item_matches"
+    celery_optimize_task: str = "workers.optimize.optimize_route_plan"
 
     task_status_base_url: Optional[str] = None
 

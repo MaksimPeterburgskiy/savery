@@ -18,3 +18,4 @@ haversine
 pgvector
 geoalchemy2
 inflect
+redis>=5
