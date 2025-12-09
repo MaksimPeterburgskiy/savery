@@ -8,8 +8,8 @@ from celery.utils.log import get_task_logger
 from sqlalchemy import and_, select
 from geoalchemy2 import Geography
 from playwright.sync_api import sync_playwright
-#from backend.app.db import session_scope
-#from backend.app.models import Store, StoreChain
+from backend.app.db import session_scope
+from backend.app.models import Store, StoreChain
 
 
 hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
@@ -23,52 +23,52 @@ class StoreProduct:
     price = float
 
 
-class Store:
-    def __init__(
-        self,
-        chain_id: str,
-        name: str,
-        external_ref: str,
-        number: str,
-        address_line1: str,
-        city: str,
-        region: str,
-        postal_code: str,
-        country_code: str,
-        timezone: str,
-        hours_json: dict,
-        phone: str,
-        geography: Geography,
-    ):
-        self.chain_id = chain_id
-        self.name = name
-        self.external_ref = external_ref
-        self.number = number
-        self.address_line1 = address_line1
-        self.city = city
-        self.region = region
-        self.postal_code = postal_code
-        self.country_code = country_code
-        self.timezone = timezone
-        self.hours_json = hours_json
-        self.phone = phone
-        self.geography = geography 
+# class Store:
+#     def __init__(
+#         self,
+#         chain_id: str,
+#         name: str,
+#         external_ref: str,
+#         number: str,
+#         address_line1: str,
+#         city: str,
+#         region: str,
+#         postal_code: str,
+#         country_code: str,
+#         timezone: str,
+#         hours_json: dict,
+#         phone: str,
+#         geography: Geography,
+#     ):
+#         self.chain_id = chain_id
+#         self.name = name
+#         self.external_ref = external_ref
+#         self.number = number
+#         self.address_line1 = address_line1
+#         self.city = city
+#         self.region = region
+#         self.postal_code = postal_code
+#         self.country_code = country_code
+#         self.timezone = timezone
+#         self.hours_json = hours_json
+#         self.phone = phone
+#         self.geography = geography 
         
         
         
-    chain_id = str
-    name = str
-    external_ref = str
-    number = str
-    address_line1 = str
-    city = str
-    region = str
-    postal_code = str
-    country_code = str
-    timezone = str
-    hours_json = dict
-    phone = str
-    geography = Geography
+    # chain_id = str
+    # name = str
+    # external_ref = str
+    # number = str
+    # address_line1 = str
+    # city = str
+    # region = str
+    # postal_code = str
+    # country_code = str
+    # timezone = str
+    # hours_json = dict
+    # phone = str
+    # geography = Geography
 
 logger = get_task_logger(__name__)
 
@@ -139,7 +139,7 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                             store.chain_id = existing_chain.id
                             session.add(store)
                         session.commit()
-                    return
+                    return stores
         context.close()
         browser.close()
         
@@ -189,6 +189,7 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
     hours = hours_whole_json.get("hours")
     hours = format_hours_json_hannaford(hours)  
+    print(hours)
     store = Store(
         chain_id=None,
         name=name,
@@ -246,8 +247,27 @@ def scrape_price_chopper() -> None:
                     name = location.locator(".location-name").inner_text().strip()
                     store = get_store_date_price_chopper(page, url, name, price_chopper_state)
                     stores.append(store)
-                    
-         
+                    if len(stores) == 10:
+                        with session_scope() as session:
+                            #add hannaford store chain if it doesn't exist
+                            chain = StoreChain(
+                                name="Price Chopper",
+                            )
+                            statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+                            existing_chain = session.exec(statement).scalars().first()
+                            if existing_chain is None:
+                                session.add(chain)
+                                session.commit()
+                            #get the id of the chain
+                            statement = session.query(StoreChain).filter(StoreChain.name == "Price Chopper")
+                            existing_chain = session.exec(statement).scalars().first()
+                            
+                            for store in stores:
+                                store.chain_id = existing_chain.id
+                                session.add(store)
+                            session.commit()
+                        return stores
+            
                 
     print(f"Total Price Chopper stores scraped: {len(stores)}")
     with session_scope() as session:
@@ -296,7 +316,10 @@ def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_s
             latitude = obj["geo"]["latitude"]
             longitude = obj["geo"]["longitude"]
         if "openingHours" in obj:
+            print(type(obj["openingHours"]))
             hours = obj["openingHours"]
+        
+    hours = format_hours_json_price_chopper(hours)
     tf = timezonefinder.TimezoneFinder()
     timezone = tf.timezone_at(lng=longitude, lat=latitude)
 
@@ -377,6 +400,18 @@ def scrape_hannaford_items() -> None:
 
 
 
+def to_hhmm(value: int | str) -> str:
+    # value like 600 -> "06:00", 2300 -> "23:00"
+    if value is None:
+        return ""
+    # ensure int
+    try:
+        iv = int(value)
+    except (TypeError, ValueError):
+        return ""
+    hours = iv // 100
+    minutes = iv % 100
+    return f"{hours:02d}:{minutes:02d}"
 
 def format_hours_json_hannaford(hours_json)->json:
     """Convert Hannaford hours format to the example_hours.json shape.
@@ -394,18 +429,6 @@ def format_hours_json_hannaford(hours_json)->json:
     }
     """
 
-    def to_hhmm(value: int | str) -> str:
-        # value like 600 -> "06:00", 2300 -> "23:00"
-        if value is None:
-            return ""
-        # ensure int
-        try:
-            iv = int(value)
-        except (TypeError, ValueError):
-            return ""
-        hours = iv // 100
-        minutes = iv % 100
-        return f"{hours:02d}:{minutes:02d}"
 
     result = {
         "monday": [],
@@ -436,10 +459,62 @@ def format_hours_json_hannaford(hours_json)->json:
             close_val = to_hhmm(interval.get("end"))
             if open_val and close_val:
                 result[day].append({"open": open_val, "close": close_val})
+    return result
+
+def format_hours_json_price_chopper(hours_str)->json:
+    
+    """Convert Price Chopper hours format to the example_hours.json shape.
+
+    Input example (string):
+        Su 06:00 - 23:00 Mo 06:00 - 23:00 Tu 06:00 - 23:00 We 06:00 - 23:00 Th 06:00 - 23:00 Fr 06:00 - 23:00 Sa 06:00 - 23:00 
+    Output example (dict keyed by lowercase day names):
+    {
+      "monday": [{"open": "08:00", "close": "22:00"}],
+      ... 
+    """
+    result = {
+        "monday": [],
+        "tuesday": [],
+        "wednesday": [],
+        "thursday": [],
+        "friday": [],
+        "saturday": [],
+        "sunday": [],
+    }
+
+    if not hours_str:
+        return result
+
+    day_map = {
+        "Su": "sunday",
+        "Mo": "monday",
+        "Tu": "tuesday",
+        "We": "wednesday",
+        "Th": "thursday",
+        "Fr": "friday",
+        "Sa": "saturday",
+    }
+
+    parts = hours_str.split()
+    i = 0
+    while i < len(parts):
+        day_abbr = parts[i]
+        day = day_map.get(day_abbr)
+        if day and (i + 2) < len(parts):
+            open_time = parts[i + 1]
+            close_time = parts[i + 3] if parts[i + 2] == '-' else None
+            if open_time and close_time:
+                result[day].append({"open": open_time, "close": close_time})
+            i += 4
+        else:
+            i += 1
+    print("FORMATTED HOURS: ", result)
+    return result
+    
     
 
 
 if __name__ == "__main__":
     scrape_hannaford()
-#  scrape_price_chopper()
+    #scrape_price_chopper()
   # scrape_hannaford_items()
