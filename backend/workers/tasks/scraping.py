@@ -8,19 +8,67 @@ from celery.utils.log import get_task_logger
 from sqlalchemy import and_, select
 from geoalchemy2 import Geography
 from playwright.sync_api import sync_playwright
-from backend.app.db import session_scope
-from backend.app.models import Store, StoreChain
+#from backend.app.db import session_scope
+#from backend.app.models import Store, StoreChain
 
 
 hannaford_states = ["NY", "ME", "NH", "VT", "MA"]
 price_chopper_states = ["NY", "VT", "MA", "CT", "PA", "NH"]
-
+price_chopper_states = ["NY"]
 class StoreProduct:
     brand = str
     name = str
     upc = str
     weight = str
     price = float
+
+
+class Store:
+    def __init__(
+        self,
+        chain_id: str,
+        name: str,
+        external_ref: str,
+        number: str,
+        address_line1: str,
+        city: str,
+        region: str,
+        postal_code: str,
+        country_code: str,
+        timezone: str,
+        hours_json: dict,
+        phone: str,
+        geography: Geography,
+    ):
+        self.chain_id = chain_id
+        self.name = name
+        self.external_ref = external_ref
+        self.number = number
+        self.address_line1 = address_line1
+        self.city = city
+        self.region = region
+        self.postal_code = postal_code
+        self.country_code = country_code
+        self.timezone = timezone
+        self.hours_json = hours_json
+        self.phone = phone
+        self.geography = geography 
+        
+        
+        
+    chain_id = str
+    name = str
+    external_ref = str
+    number = str
+    address_line1 = str
+    city = str
+    region = str
+    postal_code = str
+    country_code = str
+    timezone = str
+    hours_json = dict
+    phone = str
+    geography = Geography
 
 logger = get_task_logger(__name__)
 
@@ -139,7 +187,8 @@ def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: st
     
     #find the hours and store them in a json object
     hours_whole_json = json.loads(page.locator("[class=js-hours-config]").nth(0).inner_text().strip())
-    hours = hours_whole_json.get("hours")    
+    hours = hours_whole_json.get("hours")
+    hours = format_hours_json_hannaford(hours)  
     store = Store(
         chain_id=None,
         name=name,
@@ -183,7 +232,7 @@ def scrape_price_chopper() -> None:
                 city = cities.nth(i)
                 city_url = city.locator("a").get_attribute("href")
                 page.goto(city_url)
-                page.wait_for_selector("ul.map-list.height-auto", timeout=2000)
+                page.wait_for_selector("ul.map-list.height-auto", timeout=1000)
                 ul = page.locator("ul.map-list.height-auto")
                 stores_wrapper = ul.locator("li.map-list-item-wrap")
                 store_count = stores_wrapper.count()
@@ -197,7 +246,8 @@ def scrape_price_chopper() -> None:
                     name = location.locator(".location-name").inner_text().strip()
                     store = get_store_date_price_chopper(page, url, name, price_chopper_state)
                     stores.append(store)
-
+                    
+         
                 
     print(f"Total Price Chopper stores scraped: {len(stores)}")
     with session_scope() as session:
@@ -215,6 +265,7 @@ def scrape_price_chopper() -> None:
             store.chain_id = existing_chain.id
             session.add(store)
         session.commit()
+    return stores
     return {"chain": "Price Chopper", "count": len(stores)}
 
 def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_state: str) -> Store:
@@ -265,6 +316,7 @@ def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_s
         geography=f'POINT({longitude} {latitude})'
         
     )
+    print(f"Scraped store: {name}, {address}, {city_name}, {price_chopper_state}, {zip_code}")
     return store
 
 
@@ -326,9 +378,68 @@ def scrape_hannaford_items() -> None:
 
 
 
+def format_hours_json_hannaford(hours_json)->json:
+    """Convert Hannaford hours format to the example_hours.json shape.
+
+    Input example (list of day dicts):
+    [
+      {"day": "TUESDAY", "intervals": [{"end": 2300, "start": 600}]},
+      ...
+    ]
+
+    Output example (dict keyed by lowercase day names):
+    {
+      "monday": [{"open": "08:00", "close": "22:00"}],
+      ...
+    }
+    """
+
+    def to_hhmm(value: int | str) -> str:
+        # value like 600 -> "06:00", 2300 -> "23:00"
+        if value is None:
+            return ""
+        # ensure int
+        try:
+            iv = int(value)
+        except (TypeError, ValueError):
+            return ""
+        hours = iv // 100
+        minutes = iv % 100
+        return f"{hours:02d}:{minutes:02d}"
+
+    result = {
+        "monday": [],
+        "tuesday": [],
+        "wednesday": [],
+        "thursday": [],
+        "friday": [],
+        "saturday": [],
+        "sunday": [],
+    }
+
+    if not hours_json:
+        return result
+
+    for entry in hours_json:
+        day_raw = entry.get("day") if isinstance(entry, dict) else None
+        if not day_raw:
+            continue
+        day = day_raw.lower()
+        if day not in result:
+            # skip unknown labels
+            continue
+        intervals = entry.get("intervals", []) if isinstance(entry, dict) else []
+        for interval in intervals:
+            if not isinstance(interval, dict):
+                continue
+            open_val = to_hhmm(interval.get("start"))
+            close_val = to_hhmm(interval.get("end"))
+            if open_val and close_val:
+                result[day].append({"open": open_val, "close": close_val})
+    
 
 
 if __name__ == "__main__":
-
-  scrape_price_chopper()
+    scrape_hannaford()
+#  scrape_price_chopper()
   # scrape_hannaford_items()
