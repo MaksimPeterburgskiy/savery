@@ -119,54 +119,61 @@ def scrape_hannaford(self=None, *args, **kwargs) -> None:
                     store = get_store_data_hannaford(page, f"https://stores.hannaford.com/{city_url}", city_name, hannaford_state)
 
                     stores.append(store)
-                #TODO REMOVE THIS BEFORE PRODUCTION
-                if len(stores) == 10:
-                    with session_scope() as session:
-                        #add hannaford store chain if it doesn't exist
-                        chain = StoreChain(
-                            name="Hannaford",
-                        )
-                        statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
-                        existing_chain = session.exec(statement).scalars().first()
-                        if existing_chain is None:
-                            session.add(chain)
-                            session.commit()
-                        #get the id of the chain
-                        statement = session.query(StoreChain).filter(StoreChain.name == "Hannaford")
-                        existing_chain = session.exec(statement).scalars().first()
+                    
+                # #TODO REMOVE THIS BEFORE PRODUCTION
+                # if len(stores) == 10:
+                #     with session_scope() as session:
+                #         #add hannaford store chain if it doesn't exist
+                #         chain = StoreChain(
+                #             name="Hannaford",
+                #         )
+                #         statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+                #         existing_chain = session.exec(statement).scalars().first()
+                #         if existing_chain is None:
+                #             session.add(chain)
+                #             session.commit()
+                #         #get the id of the chain
+                #         statement = session.query(StoreChain).filter(StoreChain.name == "Hannaford")
+                #         existing_chain = session.exec(statement).scalars().first()
                         
-                        for store in stores:
-                            store.chain_id = existing_chain.id
-                            session.add(store)
-                        session.commit()
-                    return stores
+                #         for store in stores:
+                #             store.chain_id = existing_chain.id
+                #             session.add(store)
+                #         session.commit()
+                #     return stores
+                
         context.close()
         browser.close()
         
-        with session_scope() as session:
-            #add hannaford store chain if it doesn't exist
-            chain = StoreChain(
-                name="Hannaford",
-            )
-            statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
-            existing_chain = session.exec(statement).scalars().first()
-            if existing_chain is None:
-                session.add(chain)
-                session.commit()
-            for store in stores:
-                store.chain_id = existing_chain.id
-                session.add(store)
+    with session_scope() as session:
+        #add hannaford store chain if it doesn't exist
+        chain = StoreChain(
+            name="Hannaford",
+        )
+        statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+        existing_chain = session.exec(statement).scalars().first()
+        if existing_chain is None:
+            session.add(chain)
             session.commit()
+        #get the id of the chain
+        statement = session.query(StoreChain).filter(StoreChain.name == "Hannaford")
+        existing_chain = session.exec(statement).scalars().first()
+        inserted_ids = []
+        for store in stores:
+            store.chain_id = existing_chain.id
+            session.add(store)
+            # assign PKs so we can capture them now
+            session.flush()
+            try:
+                inserted_ids.append(str(store.id))
+            except Exception:
+                # if id isn't available for any reason, skip it
+                pass
+        session.commit()
+        # capture primitives before session closes
+        chain_id = str(existing_chain.id)
 
-            # collect inserted store ids (objects should have ids after commit)
-            inserted_ids = []
-            for store in stores:
-                try:
-                    inserted_ids.append(str(store.id))
-                except Exception:
-                    inserted_ids.append(None)
-            
-            return {"chain_id": str(existing_chain.id), "count": len(stores), "store_ids": inserted_ids}
+    return {"chain_id": chain_id, "count": len(stores), "store_ids": inserted_ids}
 
 #helper function to get store data from hannaford store page
 def get_store_data_hannaford(page, url: str, city_name: str, hannaford_state: str) -> Store:
@@ -247,45 +254,48 @@ def scrape_price_chopper() -> None:
                     name = location.locator(".location-name").inner_text().strip()
                     store = get_store_date_price_chopper(page, url, name, price_chopper_state)
                     stores.append(store)
-                    if len(stores) == 10:
-                        with session_scope() as session:
-                            #add hannaford store chain if it doesn't exist
-                            chain = StoreChain(
-                                name="Price Chopper",
-                            )
-                            statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
-                            existing_chain = session.exec(statement).scalars().first()
-                            if existing_chain is None:
-                                session.add(chain)
-                                session.commit()
-                            #get the id of the chain
-                            statement = session.query(StoreChain).filter(StoreChain.name == "Price Chopper")
-                            existing_chain = session.exec(statement).scalars().first()
+                    # if len(stores) == 10:
+                    #     with session_scope() as session:
+                    #         #add hannaford store chain if it doesn't exist
+                    #         chain = StoreChain(
+                    #             name="Price Chopper",
+                    #         )
+                    #         statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+                    #         existing_chain = session.exec(statement).scalars().first()
+                    #         if existing_chain is None:
+                    #             session.add(chain)
+                    #             session.commit()
+                    #         #get the id of the chain
+                    #         statement = session.query(StoreChain).filter(StoreChain.name == "Price Chopper")
+                    #         existing_chain = session.exec(statement).scalars().first()
                             
-                            for store in stores:
-                                store.chain_id = existing_chain.id
-                                session.add(store)
-                            session.commit()
-                        return stores
+                    #         for store in stores:
+                    #             store.chain_id = existing_chain.id
+                    #             session.add(store)
+                    #         session.commit()
+                    #     return stores
             
                 
     print(f"Total Price Chopper stores scraped: {len(stores)}")
-    with session_scope() as session:
-        chain = StoreChain(
-            name="Price Chopper",
-        )
-        statement = select(StoreChain).where(
-                StoreChain.name == chain.name,
-        )
-        existing_chain = session.exec(statement).scalars().first()
-        if existing_chain is None:
-            session.add(chain)
+    if len(stores) == 10:
+        with session_scope() as session:
+            #add hannaford store chain if it doesn't exist
+            chain = StoreChain(
+                name="Price Chopper",
+            )
+            statement = session.query(StoreChain).filter(StoreChain.name == chain.name)
+            existing_chain = session.exec(statement).scalars().first()
+            if existing_chain is None:
+                session.add(chain)
+                session.commit()
+            #get the id of the chain
+            statement = session.query(StoreChain).filter(StoreChain.name == "Price Chopper")
+            existing_chain = session.exec(statement).scalars().first()
+            
+            for store in stores:
+                store.chain_id = existing_chain.id
+                session.add(store)
             session.commit()
-        for store in stores:
-            store.chain_id = existing_chain.id
-            session.add(store)
-        session.commit()
-    return stores
     return {"chain": "Price Chopper", "count": len(stores)}
 
 def get_store_date_price_chopper(page, url: str, city_name: str, price_chopper_state: str) -> Store:
