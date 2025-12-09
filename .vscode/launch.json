@@ -43,6 +43,28 @@
       "args": [
         "-A",
         "backend.workers.celery_app:celery_app",
+        "beat",
+        "-l",
+        "info",
+        "--pidfile="
+      ],
+      "justMyCode": true,
+      "consoleTitle": "Celery",
+    },
+    {
+      "name": "Celery Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "envFile": "${workspaceFolder}/backend/.env",
+      "module": "celery",
+      "args": [
+        "-A",
+        "backend.workers.celery_app:celery_app",
         "worker",
         "-l",
         "info",
@@ -54,42 +76,41 @@
       "preLaunchTask": "terminate celery worker",
       "suppressMultipleSessionWarning": true
     },
-
     {
-        "name": "Expo",
-        "type": "pwa-node",
-        "request": "launch",
-        "console": "integratedTerminal",
-        "cwd": "${workspaceFolder}/frontend/savery",
-        "runtimeExecutable": "npx",
-        "args": [
-            "expo",
-            "start",
-            "--tunnel"
-        ],
-        "justMyCode": true,
-        "consoleTitle": "Expo",
+      "name": "Expo",
+      "type": "pwa-node",
+      "request": "launch",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/frontend/savery",
+      "runtimeExecutable": "npx",
+      "args": [
+        "expo",
+        "start",
+        "--tunnel"
+      ],
+      "justMyCode": true,
+      "consoleTitle": "Expo",
     }
-
   ],
   "compounds": [
     {
       "name": "Run - Backend",
       "configurations": [
         "Web API",
-        "Celery"
+        "Celery",
+        "Celery Worker"
       ],
       "stopAll": true,
       "preLaunchTask": "start services (postgres+rabbitmq+dragonfly)",
       "postDebugTask": "stop services (postgres+rabbitmq+dragonfly)",
     },
-    
     {
       "name": "Run - Expo + Backend",
       "configurations": [
         "Expo",
         "Web API",
-        "Celery"
+        "Celery",
+        "Celery Worker"
       ],
       "stopAll": true,
       "preLaunchTask": "start services (postgres+rabbitmq+dragonfly)",

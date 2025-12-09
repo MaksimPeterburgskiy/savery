@@ -11,6 +11,10 @@ psycopg[binary]
 debugpy
 pint
 alembic
+scrapy
+timezonefinder
+playwright
+haversine
 pgvector
 geoalchemy2
 inflect

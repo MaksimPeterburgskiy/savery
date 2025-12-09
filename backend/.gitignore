@@ -47,3 +47,7 @@ celerybeat.pid
 # OS-specific artifacts
 .DS_Store
 Thumbs.db
+
+
+# html files used for analysing scraped data
+scrapers/*.html
