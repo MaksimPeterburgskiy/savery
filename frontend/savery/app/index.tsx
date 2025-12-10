@@ -1,99 +1,76 @@
-import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
-import { Text } from '@/components/ui/text';
-import { THEME } from '@/lib/theme';
-import { Link, Stack } from 'expo-router';
-import { MoonStarIcon, StarIcon, SunIcon } from 'lucide-react-native';
-import { useColorScheme } from 'nativewind';
+import {
+  getActiveFlow,
+  getListId,
+  setListId,
+  setRoutePlanId,
+  FlowState,
+} from '@/lib/itemStore';
+import { useFocusEffect } from 'expo-router';
 import * as React from 'react';
-import { Image, type ImageStyle, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
 import ItemInput from './itemInput';
-// import StoreSelect from './storeselect';
 
-const LOGO = {
-  light: require('@/assets/images/react-native-reusables-light.png'),
-  dark: require('@/assets/images/react-native-reusables-dark.png'),
-};
+/**
+ * App entry point - renders ItemInput directly.
+ *
+ * Flow state restoration is handled by each screen checking if it needs
+ * to forward to the next screen. This builds the navigation stack naturally
+ * and enables swipe-back gestures.
+ */
+export default function Index() {
+  const [ready, setReady] = useState(false);
 
-const SCREEN_OPTIONS = {
-  light: {
-    title: 'React Native Reusables',
-    headerTransparent: true,
-    headerShadowVisible: true,
-    headerStyle: { backgroundColor: THEME.light.background },
-    headerRight: () => <ThemeToggle />,
-  },
-  dark: {
-    title: 'React Native Reusables',
-    headerTransparent: true,
-    headerShadowVisible: true,
-    headerStyle: { backgroundColor: THEME.dark.background },
-    headerRight: () => <ThemeToggle />,
-  },
-};
+  useEffect(() => {
+    const restoreIds = async () => {
+      try {
+        const flow = await getActiveFlow();
+        if (flow) {
+          // Restore IDs to in-memory store for cross-screen access
+          restoreSessionIds(flow);
+        }
+      } catch (e) {
+        console.error('[Index] Error restoring flow state:', e);
+      } finally {
+        setReady(true);
+      }
+    };
 
-const IMAGE_STYLE: ImageStyle = {
-  height: 76,
-  width: 76,
-};
+    restoreIds();
+  }, []);
 
-export default function Screen() {
-  const { colorScheme } = useColorScheme();
+  // Re-restore IDs when screen regains focus (handles back navigation)
+  useFocusEffect(
+    useCallback(() => {
+      const ensureIds = async () => {
+        // Only restore if IDs are missing (they might have been cleared on remount)
+        if (!getListId()) {
+          const flow = await getActiveFlow();
+          if (flow) {
+            restoreSessionIds(flow);
+          }
+        }
+      };
+      ensureIds();
+    }, [])
+  );
 
+  // Wait for IDs to be restored before rendering
+  if (!ready) {
+    return null;
+  }
+
+  // Render ItemInput directly - it will handle forwarding to the right screen
   return <ItemInput />;
-    //   ( 
-    // <>
-    //   <Stack.Screen options={SCREEN_OPTIONS[colorScheme ?? 'light']} />
-    //   <View className="flex-1 items-center justify-center gap-8 p-4">
-    //     <Image source={LOGO[colorScheme ?? 'light']} style={IMAGE_STYLE} resizeMode="contain" />
-    //     <View className="gap-2 p-4">
-    //       <Text className="ios:text-foreground font-mono text-sm text-muted-foreground">
-    //         1. Edit <Text variant="code">app/index.tsx</Text> to get started.
-    //       </Text>
-    //       <Text className="ios:text-foreground font-mono text-sm text-muted-foreground">
-    //         2. Save to see your changes instantly.
-    //       </Text>
-    //     </View>
-    //     <View className="flex-row gap-2">
-    //       <Link href="https://reactnativereusables.com" asChild>
-    //         <Button>
-    //           <Text>Browse the Docs</Text>
-    //         </Button>
-    //       </Link>
-    //       <Link href="https://github.com/founded-labs/react-native-reusables" asChild>
-    //         <Button variant="ghost">
-    //           <Text>Star the Repo</Text>
-    //           <Icon as={StarIcon} />
-    //         </Button>
-    //       </Link>
-    //     </View>
-    //     <View className="flex-row gap-2">
-    //       <Link href="/itemInput" asChild>
-    //         <Button>
-    //           <Text>Item Input</Text>
-    //         </Button>
-    //       </Link>
-    //     </View>
-    //   </View>
-    // </>
-    //   );
 }
 
-const THEME_ICONS = {
-  light: SunIcon,
-  dark: MoonStarIcon,
-};
-
-function ThemeToggle() {
-  const { colorScheme, toggleColorScheme } = useColorScheme();
-
-  return (
-    <Button
-      onPressIn={toggleColorScheme}
-      size="icon"
-      variant="ghost"
-      className="rounded-full web:mx-4">
-      <Icon as={THEME_ICONS[colorScheme ?? 'light']} className="size-5" />
-    </Button>
-  );
+/**
+ * Restore session IDs from flow state to the in-memory store.
+ */
+function restoreSessionIds(flow: FlowState): void {
+  if (flow.listId) {
+    setListId(flow.listId);
+  }
+  if (flow.routePlanId) {
+    setRoutePlanId(flow.routePlanId);
+  }
 }

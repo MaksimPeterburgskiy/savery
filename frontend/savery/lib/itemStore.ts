@@ -2,6 +2,22 @@
 // Not persisted — suitable for short-lived navigation state in this app.
 
 // ============================================================================
+// Flow State Persistence
+// ============================================================================
+export {
+  saveFlowState,
+  loadFlowState,
+  getActiveFlow,
+  clearFlowState,
+  getTargetScreen,
+  getTargetScreenForActiveJob,
+  createInitialFlowState,
+  updateFlowState,
+} from './flowState';
+
+export type { FlowState, FlowStep, JobType } from './flowState';
+
+// ============================================================================
 // ACTUAL FUNCTIONALITY - Cross-screen ID storage for API integration
 // ============================================================================
 

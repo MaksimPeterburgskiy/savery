@@ -121,7 +121,7 @@ class TestCalculateMatchScore:
 
     def test_generic_search_excludes_brand(self) -> None:
         """User searching 'tissues' should exclude brand for perfect match."""
-        score = calculate_match_score(["tissues"], "Kleenex Tissues", product_brand="Kleenex")
+        score = calculate_match_score(["tissue"], "Kleenex Tissues", product_brand="Kleenex")
         # Brand excluded, left with "Tissues"
         assert score == approx(100.0)
 

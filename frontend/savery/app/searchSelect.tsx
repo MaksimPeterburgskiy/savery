@@ -4,9 +4,19 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
+import { JobProgressOverlay } from '@/components/JobProgressOverlay';
 import { distanceInMiles } from '@/lib/geo';
-import { getListId, getRoutePlanId, setRoutePlanId } from '@/lib/itemStore';
-import { Link, useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
+import {
+  getListId,
+  getRoutePlanId,
+  setListId,
+  setRoutePlanId,
+  getActiveFlow,
+  loadFlowState,
+  updateFlowState,
+} from '@/lib/itemStore';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { ArrowRight, MapPin, Scale, Store, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
@@ -48,6 +58,8 @@ interface RoutePlan {
 
 // ===== SCREEN: searchSelect =====
 function SearchSelect() {
+  const router = useRouter();
+
   // ----- State -----
   // Search mode: Speed, Balanced, or Price (maps to backend OptimizationMode)
   const [searchMode, setSearchMode] = useState<OptimizationMode>('BALANCED');
@@ -61,6 +73,11 @@ function SearchSelect() {
   const [routePlanId, setLocalRoutePlanId] = useState<string | null>(null);
   // True while fetching initial data
   const [loading, setLoading] = useState(true);
+  // Error state for initial load
+  const [error, setError] = useState<string | null>(null);
+  // Job tracking state for MATCH job
+  const [showMatchOverlay, setShowMatchOverlay] = useState(false);
+  const [matchJobId, setMatchJobId] = useState<string | null>(null);
   // Timers for debouncing API updates
   const syncTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // Base URL for API calls
@@ -118,14 +135,37 @@ function SearchSelect() {
 
   // ----- Effects -----
   // On mount: fetch existing route plan or create a new one
+  // Also check flow state to see if we should forward to a later screen
   useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
       try {
-        const listId = getListId();
+        let listId = getListId();
+
+        // If listId is missing, try to restore from flow state (handles back navigation)
+        if (!listId) {
+          const flow = await getActiveFlow();
+          if (flow?.listId) {
+            setListId(flow.listId);
+            if (flow.routePlanId) {
+              setRoutePlanId(flow.routePlanId);
+            }
+            listId = flow.listId;
+          }
+        }
+
         if (!listId) {
           console.error('No list ID available');
+          setError('No shopping list found');
           setLoading(false);
+          return;
+        }
+
+        // Check flow state - if we should be at a later screen, forward there
+        const existingFlow = await loadFlowState(listId);
+        if (existingFlow && ['MATCHED', 'CONFIRMING', 'OPTIMIZED', 'COMPLETE'].includes(existingFlow.currentStep)) {
+          if (cancelled) return;
+          router.push('/itemMatch');
           return;
         }
 
@@ -159,6 +199,7 @@ function SearchSelect() {
         setSelectedStores(routePlan.selected_stores);
       } catch (err) {
         console.error('Failed to initialize route plan', err);
+        if (!cancelled) setError('Failed to load');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -169,19 +210,51 @@ function SearchSelect() {
       cancelled = true;
       Object.values(syncTimers.current).forEach(clearTimeout);
     };
-  }, [apiFetch, mapApiRoutePlan]);
+  }, [apiFetch, mapApiRoutePlan, router]);
 
-  // Refresh route plan when screen regains focus (e.g., returning from map)
+  // Refresh route plan when screen regains focus (e.g., returning from map or back navigation)
+  // Also update flow state to reflect user navigated back to this screen
   useFocusEffect(
     useCallback(() => {
       const refreshRoutePlan = async () => {
-        const planId = routePlanId || getRoutePlanId();
+        let planId = routePlanId || getRoutePlanId();
+        let listId = getListId();
+
+        // If planId is missing, try to restore from flow state (handles back navigation)
+        if (!planId) {
+          const flow = await getActiveFlow();
+          if (flow?.routePlanId) {
+            setRoutePlanId(flow.routePlanId);
+            planId = flow.routePlanId;
+          }
+          if (flow?.listId && !listId) {
+            setListId(flow.listId);
+            listId = flow.listId;
+          }
+        }
+
         if (!planId) return;
 
         try {
+          // Update flow state to STORES_SELECTED since user is on this screen
+          // This handles the case where user navigated back from a later screen
+          if (listId) {
+            await updateFlowState(listId, {
+              currentStep: 'STORES_SELECTED',
+              routePlanId: planId,
+              activeJobId: undefined,
+              activeJobType: undefined,
+            });
+          }
+
           const res = await apiFetch(`/route-plans/${planId}`);
           const apiPlan = await res.json();
           const plan = mapApiRoutePlan(apiPlan);
+
+          // Update local state if needed
+          if (!routePlanId) {
+            setLocalRoutePlanId(plan.id);
+          }
 
           // Compute distances if user location is available
           if (plan.user_longitude != null && plan.user_latitude != null) {
@@ -203,8 +276,8 @@ function SearchSelect() {
         }
       };
 
-      // Only refresh if we already have a route plan (not during initial load)
-      if (!loading && routePlanId) {
+      // Refresh on focus - either if we have a route plan, or if we need to restore one
+      if (!loading) {
         refreshRoutePlan();
       }
     }, [routePlanId, loading, apiFetch, mapApiRoutePlan])
@@ -338,6 +411,121 @@ function SearchSelect() {
     [apiFetch, routePlanId, mapApiRoutePlan]
   );
 
+  // ----- Match Items handlers -----
+  // Handle Match Items button press - starts MATCH job
+  const handleMatchItems = useCallback(async () => {
+    if (!routePlanId) return;
+
+    try {
+      // Get user's current location and persist to route plan before matching
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          // PATCH the route plan with user's location
+          await apiFetch(`/route-plans/${routePlanId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              user_longitude: location.coords.longitude,
+              user_latitude: location.coords.latitude,
+            }),
+          });
+        }
+      } catch (locationErr) {
+        // Location errors are non-fatal - continue with match job
+        console.warn('Could not get user location:', locationErr);
+      }
+
+      // POST to create a new MATCH job
+      const res = await apiFetch(`/route-plans/${routePlanId}/item-match-jobs`, {
+        method: 'POST',
+      });
+      const job = await res.json();
+      setMatchJobId(job.id);
+      setShowMatchOverlay(true);
+
+      // Update flow state to MATCHING
+      const listId = getListId();
+      if (listId) {
+        await updateFlowState(listId, {
+          currentStep: 'MATCHING',
+          activeJobId: job.id,
+          activeJobType: 'MATCH',
+          routePlanId,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to start match job', err);
+    }
+  }, [routePlanId, apiFetch]);
+
+  // Handle match job completion
+  const handleMatchComplete = useCallback(async () => {
+    setShowMatchOverlay(false);
+    setMatchJobId(null);
+
+    // Update flow state to MATCHED
+    const listId = getListId();
+    if (listId) {
+      await updateFlowState(listId, {
+        currentStep: 'MATCHED',
+        activeJobId: undefined,
+        activeJobType: undefined,
+      });
+    }
+
+    router.push('/itemMatch');
+  }, [router]);
+
+  // Handle match job cancel
+  const handleMatchCancel = useCallback(() => {
+    setShowMatchOverlay(false);
+    setMatchJobId(null);
+  }, []);
+
+  // Retry handler - restarts the MATCH job
+  const handleMatchRetry = useCallback(async () => {
+    if (!routePlanId) return;
+
+    try {
+      const res = await apiFetch(`/route-plans/${routePlanId}/item-match-jobs`, {
+        method: 'POST',
+      });
+      const job = await res.json();
+      setMatchJobId(job.id);
+
+      const listId = getListId();
+      if (listId) {
+        await updateFlowState(listId, {
+          activeJobId: job.id,
+          activeJobType: 'MATCH',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to retry match job', err);
+      setShowMatchOverlay(false);
+    }
+  }, [routePlanId, apiFetch]);
+
+  // Check for active MATCH job on mount (for app restart resilience)
+  useEffect(() => {
+    const checkActiveJob = async () => {
+      const listId = getListId();
+      if (!listId) return;
+
+      const flow = await loadFlowState(listId);
+      if (flow?.activeJobId && flow.activeJobType === 'MATCH' && flow.routePlanId) {
+        // Resume showing the overlay for the active job
+        setMatchJobId(flow.activeJobId);
+        setShowMatchOverlay(true);
+      }
+    };
+
+    checkActiveJob();
+  }, []);
+
   // ----- Render -----
   // Show loading state while fetching initial data
   if (loading) {
@@ -345,6 +533,32 @@ function SearchSelect() {
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text className="text-gray-500">Loading route plan…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show error state with retry option
+  if (error) {
+    return (
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <Text className="text-center text-gray-600" style={{ fontSize: 16 }}>
+            Unable to load search settings
+          </Text>
+          <Text className="mt-2 text-center text-gray-400" style={{ fontSize: 14 }}>
+            Please check your connection and try again
+          </Text>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onPress={() => {
+              setError(null);
+              setLoading(true);
+            }}
+          >
+            <Text>Retry</Text>
+          </Button>
         </View>
       </SafeAreaView>
     );
@@ -358,6 +572,7 @@ function SearchSelect() {
           <ScrollView
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 20 }}>
           {/* Search Options Card */}
           <Card className="mb-4 rounded-2xl bg-white/80 py-0 dark:bg-zinc-900/80">
@@ -554,22 +769,20 @@ function SearchSelect() {
             </CardContent>
           </Card>
         </ScrollView>
-
-          {/* Continue Button - Fixed at Bottom, only shown when stores are selected */}
-          {selectedStores.length > 0 && (
-          <View style={{ paddingVertical: 20 }}>
-            <Link href="/itemMatch" asChild>
-              <Button variant="continue" size="xl">
-                <Text style={{ textAlign: 'center', fontSize: 18, fontWeight: '600' }}>
-                  Match Items
-                </Text>
-                <ArrowRight size={20} color="white" />
-              </Button>
-            </Link>
-          </View>
-          )}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Match Items Button - Fixed at Bottom, outside KeyboardAvoidingView so it doesn't move with keyboard */}
+      {selectedStores.length > 0 && (
+        <View style={{ paddingVertical: 20, marginHorizontal: 20 }}>
+          <Button variant="continue" size="xl" onPress={handleMatchItems}>
+            <Text style={{ textAlign: 'center', fontSize: 18, fontWeight: '600' }}>
+              Match Items
+            </Text>
+            <ArrowRight size={20} color="white" />
+          </Button>
+        </View>
+      )}
 
       {/* Floating Done button above keyboard */}
       {keyboardVisible && (
@@ -599,6 +812,19 @@ function SearchSelect() {
             </Text>
           </TouchableOpacity>
         </Animated.View>
+      )}
+
+      {/* Job Progress Overlay for MATCH job */}
+      {routePlanId && (
+        <JobProgressOverlay
+          visible={showMatchOverlay}
+          routePlanId={routePlanId}
+          jobId={matchJobId}
+          jobType="MATCH"
+          onComplete={handleMatchComplete}
+          onCancel={handleMatchCancel}
+          onRetry={handleMatchRetry}
+        />
       )}
     </SafeAreaView>
   );

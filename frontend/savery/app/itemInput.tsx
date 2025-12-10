@@ -3,9 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 // TEMP: Using global item store for demo until API integration is complete
-import { setItems as setGlobalItems, setListId } from '@/lib/itemStore';
+import { setItems as setGlobalItems, setListId, getListId, saveFlowState, createInitialFlowState, loadFlowState, updateFlowState } from '@/lib/itemStore';
 // end of TEMP: Using global item store for demo until API integration is complete
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowRight, Plus, Trash } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -266,6 +266,8 @@ function itemInput() {
   const [localListId, setLocalListId] = useState<string | null>(null);
   // True while fetching initial data
   const [loading, setLoading] = useState(true);
+  // Error state for initial load
+  const [error, setError] = useState<string | null>(null);
   // Timers for debouncing API updates per item
   const syncTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // Base URL for API calls
@@ -312,6 +314,7 @@ function itemInput() {
   }, [items]);
 
   // On mount: fetch existing list or create a new one, then load items
+  // Also check flow state to see if we should forward to a later screen
   useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
@@ -331,6 +334,19 @@ function itemInput() {
         if (cancelled) return;
         setListId(selected.id); // Store in global store for cross-screen access
         setLocalListId(selected.id);
+
+        // Check existing flow state - only create initial if none exists
+        const existingFlow = await loadFlowState(selected.id);
+        if (!existingFlow) {
+          const initialFlowState = createInitialFlowState(selected.id);
+          await saveFlowState(initialFlowState);
+        } else if (existingFlow.currentStep !== 'ITEMS_ENTERED') {
+          // Flow state indicates we should be at a later screen - forward there
+          if (cancelled) return;
+          router.push('/searchSelect');
+          return; // Don't continue loading items, we're forwarding
+        }
+
         // Fetch all items in the list
         const itemRes = await apiFetch(`/shopping-lists/${selected.id}/items`);
         const apiItems = await itemRes.json();
@@ -339,6 +355,7 @@ function itemInput() {
         setItems(mapped);
       } catch (err) {
         console.error('Failed to initialize list', err);
+        if (!cancelled) setError('Failed to load');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -349,7 +366,41 @@ function itemInput() {
       cancelled = true;
       Object.values(syncTimers.current).forEach(clearTimeout);
     };
-  }, [apiFetch, mapApiItem]);
+  }, [apiFetch, mapApiItem, router]);
+
+  // Reload items when screen regains focus (handles back navigation)
+  // Also update flow state to reflect user navigated back to this screen
+  useFocusEffect(
+    useCallback(() => {
+      const reloadItems = async () => {
+        // Use local or global listId
+        const listId = localListId || getListId();
+        if (!listId) return; // No list ID yet, initial bootstrap will handle it
+
+        try {
+          // Update flow state to ITEMS_ENTERED since user is on this screen
+          // This handles the case where user navigated back from a later screen
+          await updateFlowState(listId, {
+            currentStep: 'ITEMS_ENTERED',
+            activeJobId: undefined,
+            activeJobType: undefined,
+          });
+
+          const itemRes = await apiFetch(`/shopping-lists/${listId}/items`);
+          const apiItems = await itemRes.json();
+          const mapped = apiItems.map((i: any, idx: number) => mapApiItem(i, idx));
+          setItems(mapped);
+        } catch (err) {
+          console.error('Failed to reload items on focus', err);
+        }
+      };
+
+      // Only reload if we already have a list (not during initial load)
+      if (!loading && (localListId || getListId())) {
+        reloadItems();
+      }
+    }, [localListId, loading, apiFetch, mapApiItem])
+  );
 
   // Get the list ID or throw if not ready
   const ensureListId = useCallback(() => {
@@ -468,6 +519,32 @@ function itemInput() {
   );
 
   // ----- Render -----
+  // Show error state with retry option
+  if (error) {
+    return (
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <Text className="text-center text-gray-600" style={{ fontSize: 16 }}>
+            Unable to load your list
+          </Text>
+          <Text className="mt-2 text-center text-gray-400" style={{ fontSize: 14 }}>
+            Please check your connection and try again
+          </Text>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onPress={() => {
+              setError(null);
+              setLoading(true);
+            }}
+          >
+            <Text>Retry</Text>
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     // Adjust layout when keyboard appears
     <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>

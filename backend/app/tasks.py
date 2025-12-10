@@ -205,6 +205,7 @@ def mark_job_failed(
     task: TaskStateReporter,
     include_status: bool = True,
     extra_meta: dict[str, Any] | None = None,
+    exc: Exception | None = None,
 ) -> dict[str, Any]:
     """Mark the job as failed and capture the error details."""
 
@@ -219,7 +220,16 @@ def mark_job_failed(
         session.add(job)
 
         meta_payload = _build_task_meta(job, include_status, extra_meta)
-        _publish_task_state(task, "FAILURE", meta_payload)
+
+        failure_payload = meta_payload
+        if task:
+            failure_payload = {
+                **meta_payload,
+                "exc_type": type(exc).__name__ if exc else "Exception",
+                "exc_message": str(exc) if exc else (message or "Task failed"),
+                "exc_module": exc.__class__.__module__ if exc else "builtins",
+            }
+        _publish_task_state(task, "FAILURE", failure_payload)
 
     return meta_payload
 

@@ -6,11 +6,13 @@ import unicodedata
 from uuid import UUID
 
 from celery import shared_task
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
 
 from backend.app.db import session_scope
-from backend.app.models import ItemMatch, ItemMatchCandidate, Job, JobStage, Product, RoutePlan, ShoppingList, StoreProduct
+from backend.app.models import ItemMatch, ItemMatchCandidate, Job, JobStage, PriceEntry, Product, RoutePlan, ShoppingList, StoreProduct
+from backend.app.parsing import _singularize_token
 from backend.app.tasks import mark_job_failed, mark_job_running, mark_job_success, record_job_progress
 
 # Scoring feature flags
@@ -126,10 +128,12 @@ def calculate_match_score(
     if ENABLE_BRAND_EXCLUSION and should_exclude_brand(canon_terms, product_brand):
         scoring_name = remove_brand_from_name(product_name, product_brand)
 
-    product_terms = [t.lower() for t in scoring_name.split() if t]
+    # Singularize product terms to match canonicalized user input
+    product_terms = [_singularize_token(t.lower()) for t in scoring_name.split() if t]
     if not product_terms:
         return 0.0
 
+    # canon_terms are already singularized by canonicalize_item_name()
     canon_terms_lower = {t.lower() for t in canon_terms}
 
     if ENABLE_POSITION_WEIGHTING:
@@ -195,13 +199,16 @@ def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
 
                 matched_products: dict[UUID, tuple[str, str | None]] = {}
                 for store in selected_stores:
-                    # select products at this store where name contains all canon terms
+                    # select products at this store where brand+name contains all canon terms
+                    # This handles cases like "Philadelphia Cream Cheese" where "Philadelphia"
+                    # is in brand and "Cream Cheese" is in name
+                    brand_name_concat = func.coalesce(Product.brand, "") + " " + Product.name
                     statement = (
                         select(Product.id, Product.name, Product.brand)
                         .join(StoreProduct, StoreProduct.product_id == Product.id)
                         .where(
                             StoreProduct.store_id == store.store_id,
-                            *[Product.name.ilike(f"%{term}%") for term in canon_terms if term],
+                            *[brand_name_concat.ilike(f"%{term}%") for term in canon_terms if term],
                         )
                     )
                     matches = session.exec(statement).all()
@@ -217,6 +224,7 @@ def create_item_match_candidates(self, job_id: str | UUID) -> dict[str, str]:
                         list_item_id=item.id,
                         product_id=product_id,
                         score=score,
+                        rejected_by_user=True,
                     )
                     session.add(item_match_candidate)
                 session.commit()
@@ -287,13 +295,30 @@ def fanout_candidates_to_item_matches(self, job_id: str | UUID) -> dict[str, str
                     )
                     store_products = session.exec(statement).all()
                     for store_product in store_products:
+                        # Find current price entry for this store product
+                        # Prefer is_current=True, fallback to latest by fetched_at
+                        price_entry = session.exec(
+                            select(PriceEntry).where(
+                                PriceEntry.store_product_id == store_product.id,
+                                PriceEntry.is_current == True,
+                            )
+                        ).first()
+
+                        if price_entry is None:
+                            # Fallback: get latest price by fetched_at
+                            price_entry = session.exec(
+                                select(PriceEntry)
+                                .where(PriceEntry.store_product_id == store_product.id)
+                                .order_by(PriceEntry.fetched_at.desc())
+                            ).first()
+
                         item_match = ItemMatch(
                             plan_id=plan.id,
                             list_item_id=candidate.list_item_id,
                             store_id=selected_store.store_id,
                             item_match_candidate_id=candidate.id,
                             store_product_id=store_product.id,
-                            price_entry_id=None,  # TODO: fill when price entries exist
+                            price_entry_id=price_entry.id if price_entry else None,
                         )
                         session.add(item_match)
 

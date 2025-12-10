@@ -145,6 +145,7 @@ function StoreMap() {
 
   // ----- State -----
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [routePlanId, setLocalRoutePlanId] = useState<string | null>(null);
   const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
@@ -765,6 +766,7 @@ function StoreMap() {
         }
       } catch (err) {
         console.error('Failed to initialize store map:', err);
+        if (!cancelled) setLoadError('Failed to load');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1067,18 +1069,31 @@ function StoreMap() {
     );
   }
 
-  // No route plan available
-  if (!routePlanId || !routePlan) {
+  // Error or no route plan available
+  if (loadError || !routePlanId || !routePlan) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F5F5' }} edges={['top']}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <MapPin size={48} color="#9CA3AF" />
-          <Text className="mt-4 text-center text-gray-600">
-            No route plan available. Please go back and create one.
+          <Text className="mt-4 text-center text-gray-600" style={{ fontSize: 16 }}>
+            Unable to load map
           </Text>
-          <Button className="mt-6" onPress={handleBack}>
-            <Text>Go Back</Text>
-          </Button>
+          <Text className="mt-2 text-center text-gray-400" style={{ fontSize: 14 }}>
+            Please check your connection and try again
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+            <Button variant="outline" onPress={handleBack}>
+              <Text>Go Back</Text>
+            </Button>
+            <Button
+              onPress={() => {
+                setLoadError(null);
+                setLoading(true);
+              }}
+            >
+              <Text>Retry</Text>
+            </Button>
+          </View>
         </View>
       </SafeAreaView>
     );
