@@ -10,16 +10,19 @@ npx react-native-reusables/cli@latest init -t savery
 
 ## Getting Started
 
+Install dependencies (Bun only):
+
+```bash
+cd frontend/savery
+bun install
+bunx expo doctor --fix-dependencies
+```
+
 To run the development server:
 
 ```bash
-    npm run dev
-    # or
-    yarn dev
-    # or
-    pnpm dev
-    # or
-    bun dev
+cd frontend/savery
+bunx expo start
 ```
 
 This will start the Expo Dev Server. Open the app in:
@@ -35,10 +38,10 @@ You can also scan the QR code using the [Expo Go](https://expo.dev/go) app on yo
 You can add more reusable components using the CLI:
 
 ```bash
-npx react-native-reusables/cli@latest add [...components]
+bunx react-native-reusables/cli@latest add [...components]
 ```
 
-> e.g. `npx react-native-reusables/cli@latest add input textarea`
+> e.g. `bunx react-native-reusables/cli@latest add input textarea`
 
 If you don't specify any component names, you'll be prompted to select which components to add interactively. Use the `--all` flag to install all available components at once.
 

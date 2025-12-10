@@ -8,6 +8,8 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
+from sqlmodel import select
+
 from backend.app.db import session_scope
 from backend.app.main import create_app
 from backend.app.models import Job, JobStage, JobStatus, RoutePlan, ShoppingList
@@ -40,6 +42,11 @@ def _cleanup_route_plan(plan_id: UUID, shopping_list_id: UUID) -> None:
     """Remove the plan, its jobs, and the backing shopping list."""
 
     with session_scope() as session:
+        # Explicitly delete jobs first to ensure cleanup even without cascade
+        jobs = session.exec(select(Job).where(Job.plan_id == plan_id)).all()
+        for job in jobs:
+            session.delete(job)
+
         plan = session.get(RoutePlan, plan_id)
         if plan is not None:
             session.delete(plan)

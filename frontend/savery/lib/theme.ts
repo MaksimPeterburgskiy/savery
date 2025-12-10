@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
+import { StyleSheet } from 'react-native';
  
 export const THEME = {
   light: {
@@ -79,3 +80,74 @@ export const NAV_THEME: Record<'light' | 'dark', Theme> = {
     },
   },
 };
+
+export const CardStyle = StyleSheet.create({
+    card: {
+        backgroundColor: '#EDEDED',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16,
+    },
+    headerSpaceBetween: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    itemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        padding: 8,
+        marginTop: 6,
+    },
+    imagePlaceholder: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        backgroundColor: '#D3D3D3',
+        marginRight: 10,
+    },
+    itemInfo: {
+        color: '#000',
+        flex: 1,
+    },
+    checkContainer: {
+        width: 42,
+        height: 42,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    xContainer: {
+        width: 42,
+        height: 42,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkIcon: {
+        color: '#4ADE80',
+        fontWeight: '700',
+    },
+    xIcon: {
+        color: '#FF5C5C',
+        fontWeight: '700',
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    centeredRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    }, 
+    mainText: {
+        fontWeight: '700',
+        color: '#000',
+    },
+    subText: {
+        color: '#000',
+    },
+});

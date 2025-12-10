@@ -1,1 +1,6 @@
 .coverage
+node_modules
+npm-debug.log*
+yarn-error.log
+frontend/savery/.env
+frontend/savery/.env.tunnel

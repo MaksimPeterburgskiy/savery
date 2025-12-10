@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from geoalchemy2 import Geography
-from sqlalchemy import cast, func
+from sqlalchemy import cast, func, or_
 from sqlmodel import Session, select
 
 from backend.app.dependencies import get_db
@@ -67,7 +67,7 @@ def get_nearby_store_chains(
         Geography(geometry_type="POINT", srid=4326),
     )
 
-    stmt = (
+    statement = (
         select(
             Store,
             StoreChain,
@@ -83,11 +83,79 @@ def get_nearby_store_chains(
     )
 
     chain_map: dict[UUID, StoreChainsWithStoresResponse] = {}
-    for store, chain, _, geojson in session.exec(stmt):
+    for store, chain, _, geojson in session.exec(statement):
         chain_payload = chain_map.setdefault(chain.id, StoreChainsWithStoresResponse(id=chain.id, name=chain.name))
         chain_payload.stores.append(StoreResponse.from_model(store, geojson))
 
     return list(chain_map.values())
+
+
+@router.get(
+    "/stores/search",
+    response_model=Sequence[StoreResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Search for stores by name or address",
+)
+def search_stores(
+    q: str | None = Query(default=None, min_length=1, description="Search query (store name, chain name, address, city, or postal code). If omitted, returns all stores."),
+    latitude: float | None = Query(default=None, description="Latitude for distance filtering and ordering."),
+    longitude: float | None = Query(default=None, description="Longitude for distance filtering and ordering."),
+    distance_km: float | None = Query(default=None, gt=0, description="Search radius in kilometers (requires latitude and longitude)."),
+    limit: int = Query(default=25, ge=1, le=100, description="Maximum number of results to return."),
+    session: Session = Depends(get_db),
+) -> Sequence[StoreResponse]:
+    """
+    Search stores by name, chain name, address, city, or postal code.
+
+    When latitude and longitude are provided, results can be filtered by distance
+    and are ordered by proximity. Otherwise, results are ordered by store name.
+
+    If no search query is provided, returns all stores within the specified radius
+    (requires latitude, longitude, and distance_km).
+    """
+    # Base query with geography GeoJSON for response mapping
+    statement = select(
+        Store,
+        func.ST_AsGeoJSON(Store.geography).label("geography_geojson"),
+    ).outerjoin(StoreChain, Store.chain_id == StoreChain.id)
+
+    # Apply search filter only if query is provided
+    if q:
+        q_ilike = f"%{q.strip()}%"
+        statement = statement.where(
+            or_(
+                Store.name.ilike(q_ilike),
+                Store.address_line1.ilike(q_ilike),
+                Store.city.ilike(q_ilike),
+                Store.postal_code.ilike(q_ilike),
+                StoreChain.name.ilike(q_ilike),
+            )
+        )
+
+    # Apply distance filtering and ordering when location is provided
+    if latitude is not None and longitude is not None:
+        reference_point = cast(
+            func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326),
+            Geography(geometry_type="POINT", srid=4326),
+        )
+
+        if distance_km is not None:
+            search_radius_m = distance_km * 1000.0
+            statement = statement.where(
+                Store.geography.isnot(None),
+                func.ST_DWithin(Store.geography, reference_point, search_radius_m),
+            )
+
+        # Order by distance when location is provided
+        statement = statement.order_by(func.ST_Distance(Store.geography, reference_point))
+    else:
+        # Order alphabetically by store name when no location is provided
+        statement = statement.order_by(Store.name)
+
+    statement = statement.limit(limit)
+
+    results = session.exec(statement).all()
+    return [StoreResponse.from_model(store, geojson) for store, geojson in results]
 
 
 __all__ = ["router"]

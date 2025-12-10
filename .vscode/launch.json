@@ -61,14 +61,14 @@
         "request": "launch",
         "console": "integratedTerminal",
         "cwd": "${workspaceFolder}/frontend/savery",
-        "runtimeExecutable": "npx",
+        "runtimeExecutable": "bunx",
         "args": [
             "expo",
             "start",
             "--tunnel"
         ],
         "justMyCode": true,
-        "consoleTitle": "Expo",
+        "consoleTitle": "Expo"
     }
 
   ],

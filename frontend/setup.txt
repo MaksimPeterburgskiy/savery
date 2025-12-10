@@ -1,22 +1,18 @@
-
-
-install stuff:
-delete node_modules
-npm install -g eas-cli
-npm cache clean --force
-npm install
-npm install expo
-npm install expo-dev-client
-eas login
-eas build:configure
+install stuff (run inside `frontend/savery`):
+delete node_modules     -> rm -rf node_modules .expo
+install eas-cli         -> bunx eas --version  # bunx runs eas without global install
+clear cache             -> bun pm cache rm
+install deps            -> bun install
+install expo            -> bun add expo
+install expo-dev-client -> bun add expo-dev-client
+login to eas            -> bunx eas login
+configure build         -> bunx eas build:configure
 add device on website
 name device
 install latest build
 
-
 when developing:
-npx expo start
+bunx expo start
 
 if you add dependencies or change `package.json`:
-eas build --platform ios --profile development
-
+bunx eas build --platform ios --profile development
