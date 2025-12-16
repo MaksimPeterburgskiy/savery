@@ -187,3 +187,4 @@ export function distanceInKm(from: Coordinates, to: Coordinates): number {
   return metersToKm(haversineDistanceMeters(from, to));
 }
 
+

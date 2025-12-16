@@ -1,5 +1,7 @@
 # Virtual environments
 .venv/
+.venv_linux/
+.venv_windows/
 venv/
 env/
 

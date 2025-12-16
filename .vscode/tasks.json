@@ -6,14 +6,31 @@
       "label": "start cloudflare tunnel (backend)",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "set -euo pipefail; if ! command -v cloudflared >/dev/null 2>&1; then echo \"cloudflared not found; install Cloudflare Tunnel (cloudflared) from Cloudflare docs.\" >&2; exit 1; fi; PORT=8000; ENV_TUNNEL=\"frontend/savery/.env.tunnel\"; ENV_MAIN=\"frontend/savery/.env\"; LOG_FILE=\"${TMPDIR:-/tmp}/savery-cloudflared.log\"; pkill -f \"cloudflared tunnel --url http://localhost\" >/dev/null 2>&1 || true; rm -f \"$LOG_FILE\"; nohup cloudflared tunnel --url \"http://localhost:${PORT}\" >\"$LOG_FILE\" 2>&1 & disown; for i in {1..30}; do if grep -Eo \"https://[a-zA-Z0-9.-]+trycloudflare.com\" \"$LOG_FILE\" >/dev/null 2>&1; then URL=$(grep -Eo \"https://[a-zA-Z0-9.-]+trycloudflare.com\" \"$LOG_FILE\" | head -n1); echo \"EXPO_PUBLIC_API_BASE_URL=${URL}/api\" | tee \"$ENV_TUNNEL\" >\"$ENV_MAIN\"; echo \"Cloudflare tunnel ready at $URL\"; echo \"Updated $ENV_TUNNEL and $ENV_MAIN\"; exit 0; fi; sleep 1; done; echo \"Timed out waiting for Cloudflare tunnel URL\" >&2; exit 1"
+      "args": ["-lc", "${workspaceFolder}/.vscode/scripts/start_cloudflare_tunnel_backend.sh"],
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "savery",
+          "pattern": [
+            {
+              "regexp": "^(a)(b)(c)$",
+              "file": 1,
+              "location": 2,
+              "message": 3
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^SAVERY_TUNNEL_STARTING$",
+            "endsPattern": "^SAVERY_TUNNEL_READY\\s+https://.*$"
+          }
+        }
       ],
-      "problemMatcher": [],
       "presentation": {
-        "group": "Docker",
-        "reveal": "always"
+        "group": "savery: cloudflare tunnel",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       },
       "windows": {
         "command": "powershell",
@@ -31,38 +48,53 @@
       "command": "bash",
       "args": [
         "-lc",
-        "set -euo pipefail; if ! command -v docker >/dev/null 2>&1; then echo \"Docker CLI not found; install Docker Desktop.\" >&2; exit 1; fi; if docker info >/dev/null 2>&1; then exit 0; fi; docker desktop start >/dev/null 2>&1 || true; for i in {1..30}; do if docker info >/dev/null 2>&1; then exit 0; fi; sleep 2; done; echo \"Docker Desktop did not become ready in time.\" >&2; exit 1"
+        "set -euo pipefail; if ! command -v docker >/dev/null 2>&1; then echo \"Docker CLI not found; install Docker Desktop.\" >&2; exit 1; fi; if docker info >/dev/null 2>&1; then echo \"Docker is ready.\"; exit 0; fi; echo \"Docker isn't ready yet; trying to start Docker Desktop...\"; docker desktop start || true; for i in {1..30}; do if docker info >/dev/null 2>&1; then echo \"Docker is ready.\"; exit 0; fi; sleep 2; done; echo \"Docker Desktop did not become ready in time.\" >&2; exit 1"
       ],
       "problemMatcher": [],
       "presentation": {
-        "group": "Docker",
-        "reveal": "always"
+        "group": "savery: docker",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       },
       "windows": {
         "command": "powershell",
-        "args": [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          "exit 0"
-        ]
+				"args": ["-NoProfile", "-NonInteractive", "-Command", "exit 0"]
       }
     },
     {
       "label": "start dragonfly",
-      "dependsOn": [
-        "ensure docker desktop running"
-      ],
+			//   "dependsOn": [
+			//     "ensure docker desktop running"
+			//   ],
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "if docker ps -a --format '{{.Names}}' | grep -q '^savery-dragonfly$'; then docker start savery-dragonfly >/dev/null || true; else docker run -d --name savery-dragonfly -p 6379:6379 --ulimit memlock=-1 docker.dragonflydb.io/dragonflydb/dragonfly --proactor_threads=2 >/dev/null; fi"
+      "args": ["-lc", "${workspaceFolder}/.vscode/scripts/start_dragonfly.sh"],
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "savery",
+          "pattern": [
+            {
+              "regexp": "^(a)(b)(c)$",
+              "file": 1,
+              "location": 2,
+              "message": 3
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^SAVERY_DRAGONFLY_STARTING$",
+            "endsPattern": "^SAVERY_DRAGONFLY_READY$"
+          }
+        }
       ],
-      "problemMatcher": [],
 
       "presentation": {
-        "group": "Docker"
+        "group": "savery: dragonfly",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       },
       "windows": {
         "command": "powershell",
@@ -76,18 +108,36 @@
     },
     {
       "label": "start postgres",
-      "dependsOn": [
-        "ensure docker desktop running"
-      ],
+			//   "dependsOn": [
+			//     "ensure docker desktop running"
+			//   ],
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "IMAGE=savery/postgres-postgis-pgvector:local; CONTAINER=savery-postgres; if ! docker image inspect $IMAGE >/dev/null 2>&1; then docker build -t $IMAGE -f infra/docker/postgres-pgvector.Dockerfile infra/docker >/dev/null; fi; if docker ps -a --format '{{.Names}}' | grep -q \"^${CONTAINER}$\"; then docker start $CONTAINER >/dev/null || true; else docker run -d --name $CONTAINER -p 5432:5432 -e POSTGRES_DB=savery -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres $IMAGE >/dev/null; fi"
+      "args": ["-lc", "${workspaceFolder}/.vscode/scripts/start_postgres.sh"],
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "savery",
+          "pattern": [
+            {
+              "regexp": "^(a)(b)(c)$",
+              "file": 1,
+              "location": 2,
+              "message": 3
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^SAVERY_POSTGRES_STARTING$",
+            "endsPattern": "^SAVERY_POSTGRES_READY$"
+          }
+        }
       ],
-      "problemMatcher": [],
       "presentation": {
-        "group": "Docker"
+        "group": "savery: postgres",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       },
       "windows": {
         "command": "powershell",
@@ -101,18 +151,36 @@
     },
     {
       "label": "start rabbitmq",
-      "dependsOn": [
-        "ensure docker desktop running"
-      ],
+			//   "dependsOn": [
+			//     "ensure docker desktop running"
+			//   ],
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "if docker ps -a --format '{{.Names}}' | grep -q '^savery-rabbit$'; then docker start savery-rabbit >/dev/null || true; else docker run -d --name savery-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management >/dev/null; fi"
+			"args": ["-lc", "${workspaceFolder}/.vscode/scripts/start_rabbitmq.sh"],
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "savery",
+          "pattern": [
+            {
+              "regexp": "^(a)(b)(c)$",
+              "file": 1,
+              "location": 2,
+              "message": 3
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^SAVERY_RABBITMQ_STARTING$",
+            "endsPattern": "^SAVERY_RABBITMQ_READY$"
+          }
+        }
       ],
-      "problemMatcher": [],
       "presentation": {
-        "group": "Docker"
+        "group": "savery: rabbitmq",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       },
       "windows": {
         "command": "powershell",
@@ -128,79 +196,56 @@
       "label": "terminate uvicorn web api",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "pkill -f \"uvicorn.*backend\\.app\\.main:app\" >/dev/null 2>&1 || true"
-      ],
+			"args": ["-lc", "pkill -f \"uvicorn.*backend\\.app\\.main:app\" >/dev/null 2>&1 || true"],
       "problemMatcher": [],
       "presentation": {
         "reveal": "never"
       },
       "windows": {
         "command": "powershell",
-        "args": [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          "exit 0"
-        ]
+				"args": ["-NoProfile", "-NonInteractive", "-Command", "exit 0"]
       }
     },
     {
       "label": "terminate celery worker",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "pkill -f \"celery.*backend\\.workers\\.celery_app:celery_app\" >/dev/null 2>&1 || true"
-      ],
+			"args": ["-lc", "pkill -f \"celery.*backend\\.workers\\.celery_app:celery_app\" >/dev/null 2>&1 || true"],
       "problemMatcher": [],
       "presentation": {
         "reveal": "never"
       },
       "windows": {
         "command": "powershell",
-        "args": [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          "exit 0"
-        ]
+				"args": ["-NoProfile", "-NonInteractive", "-Command", "exit 0"]
       }
     },
     {
       "label": "start services (postgres+rabbitmq+dragonfly)",
-      "dependsOn": [
-        "start postgres",
-        "start rabbitmq",
-        "start dragonfly",
-        "start cloudflare tunnel (backend)"
-      ],
+			"dependsOn": ["start postgres", "start rabbitmq", "start dragonfly", "start cloudflare tunnel (backend)"],
       "problemMatcher": [],
       "presentation": {
-        "group": "Docker"
+        "group": "savery: services",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       }
     },
     {
       "label": "stop services (postgres+rabbitmq+dragonfly)",
       "type": "shell",
       "command": "bash",
-      "args": [
-        "-lc",
-        "docker stop savery-postgres savery-rabbit savery-dragonfly >/dev/null 2>&1 || true; pkill -f \"cloudflared tunnel --url http://localhost:8000\" >/dev/null 2>&1 || true"
-      ],
+			"args": ["-lc", "docker stop savery-postgres savery-rabbit savery-dragonfly 2>/dev/null || true; pkill -f \"cloudflared tunnel --url http://localhost:8000\" >/dev/null 2>&1 || true"],
       "problemMatcher": [],
       "presentation": {
-        "group": "Docker"
+        "group": "savery: stop services",
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       },
       "windows": {
         "command": "powershell",
-        "args": [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          "docker stop savery-postgres savery-rabbit savery-dragonfly 2>$null | Out-Null; if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0 }"
-        ]
+				"args": ["-NoProfile", "-NonInteractive", "-Command", "docker stop savery-postgres savery-rabbit savery-dragonfly 2>$null | Out-Null; if ($LASTEXITCODE -ne 0) { $global:LASTEXITCODE = 0 }"]
       }
     }
   ]
